@@ -186,6 +186,7 @@ ItemList = new Microsoft.Build.Framework.ITaskItem[0];
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Papyrus\OutfitSystem.cpp" />
     <ClCompile Include="Patches\Exploratory.cpp" />
     <ClCompile Include="Patches\OverridePlayerSkinning.cpp" />
     <ClCompile Include="Services\ArmorAddonOverrideService.cpp" />
@@ -193,8 +194,10 @@ ItemList = new Microsoft.Build.Framework.ITaskItem[0];
   </ItemGroup>
   <ItemGroup>
     <None Include="exports.def" />
+    <None Include="scripts\SkyrimOutfitSystemNativeFuncs.psc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Papyrus\OutfitSystem.h" />
     <ClInclude Include="Patches\Exploratory.h" />
     <ClInclude Include="Patches\OverridePlayerSkinning.h" />
     <ClInclude Include="Services\ArmorAddonOverrideService.h" />

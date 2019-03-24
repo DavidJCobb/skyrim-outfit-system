@@ -11,6 +11,7 @@
 #include "Services/ArmorAddonOverrideService.h"
 #include "Patches/Exploratory.h"
 #include "Patches/OverridePlayerSkinning.h"
+#include "Papyrus/OutfitSystem.h"
 
 #include "skse/GameRTTI.h"
 #include "skse/GameObjects.h"
@@ -96,6 +97,13 @@ extern "C" {
    //
    // SKSEPlugin_Load: Called by SKSE to load this plug-in.
    //
+   void _RegisterAndEchoPapyrus(SKSEPapyrusInterface::RegisterFunctions callback, char* module) {
+      bool status = g_papyrus->Register(callback);
+      if (status)
+         _MESSAGE("Papyrus registration %s for %s.", "succeeded", module);
+      else
+         _MESSAGE("Papyrus registration %s for %s.", "FAILED", module);
+   };
    bool SKSEPlugin_Load(const SKSEInterface* skse) {
       _MESSAGE("Load.");
       //SkyrimOutfitSystem::INISettingManager::GetInstance().Load();
@@ -106,7 +114,10 @@ extern "C" {
       {  // Messaging callbacks.
          g_ISKSEMessaging->RegisterListener(g_pluginHandle, "SKSE", Callback_Messaging_SKSE);
       }
-      g_papyrus = (SKSEPapyrusInterface*)skse->QueryInterface(kInterface_Papyrus);
+      {  // Papyrus registrations
+         g_papyrus = (SKSEPapyrusInterface*)skse->QueryInterface(kInterface_Papyrus);
+         _RegisterAndEchoPapyrus(CobbPapyrus::OutfitSystem::Register, "SkyrimOutfitSystemNativeFuncs");
+      }
       return true;
    }
 };

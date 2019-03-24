@@ -19,7 +19,7 @@ namespace SkyrimOutfitSystem {
                return false;
             return (target == (RE::TESObjectREFR*) *g_thePlayer);
          }
-         const std::vector<RE::TESObjectARMO*>& GetOverrideArmors() {
+         const std::set<RE::TESObjectARMO*>& GetOverrideArmors() {
             auto& svc = ArmorAddonOverrideService::GetInstance();
             return svc.currentOutfit.armors;
          }
