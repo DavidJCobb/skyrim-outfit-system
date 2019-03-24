@@ -8,13 +8,22 @@
 #include <string>
 
 //#include "Services/INI.h"
+#include "Services/ArmorAddonOverrideService.h"
 #include "Patches/Exploratory.h"
+#include "Patches/OverridePlayerSkinning.h"
 
-PluginHandle			   g_pluginHandle = kPluginHandle_Invalid;
-SKSEMessagingInterface* g_ISKSEMessaging = nullptr;
+#include "skse/GameRTTI.h"
+#include "skse/GameObjects.h"
+
+PluginHandle			       g_pluginHandle = kPluginHandle_Invalid;
+SKSEPapyrusInterface*       g_papyrus            = nullptr;
+SKSEMessagingInterface*     g_ISKSEMessaging     = nullptr;
+SKSESerializationInterface* g_ISKSESerialization = nullptr;
 
 static const char*  g_pluginName = "SkyrimOutfitSystem";
 const UInt32 g_pluginVersion = 0x01000000; // 0xAABBCCDD = AA.BB.CC.DD with values converted to decimal // major.minor.update.internal-build-or-zero
+
+void Callback_Messaging_SKSE(SKSEMessagingInterface::Message* message);
 
 extern "C" {
    //
@@ -69,6 +78,16 @@ extern "C" {
             return false;
          }
       }
+      {  // Get the serialization interface and query its version.
+         g_ISKSESerialization = (SKSESerializationInterface *)skse->QueryInterface(kInterface_Serialization);
+         if (!g_ISKSESerialization) {
+            _MESSAGE("Couldn't get serialization interface.");
+            return false;
+         } else if (g_ISKSESerialization->version < SKSESerializationInterface::kVersion) {
+            _MESSAGE("Serialization interface too old (%d; we expected %d).", g_ISKSESerialization->version, SKSESerializationInterface::kVersion);
+            return false;
+         }
+      }
       //
       // This plug-in supports the current Skyrim and SKSE versions:
       //
@@ -82,7 +101,36 @@ extern "C" {
       //SkyrimOutfitSystem::INISettingManager::GetInstance().Load();
       {  // Patches:
          SkyrimOutfitSystem::Patches::Exploratory::Apply();
+         SkyrimOutfitSystem::Patches::OverridePlayerSkinning::Apply();
       }
+      {  // Messaging callbacks.
+         g_ISKSEMessaging->RegisterListener(g_pluginHandle, "SKSE", Callback_Messaging_SKSE);
+      }
+      g_papyrus = (SKSEPapyrusInterface*)skse->QueryInterface(kInterface_Papyrus);
       return true;
+   }
+};
+
+void Callback_Messaging_SKSE(SKSEMessagingInterface::Message* message) {
+   if (message->type == SKSEMessagingInterface::kMessage_PostLoad) {
+   } else if (message->type == SKSEMessagingInterface::kMessage_PostPostLoad) {
+   } else if (message->type == SKSEMessagingInterface::kMessage_DataLoaded) {
+      //
+      // TEST TEST TEST TEST TEST
+      //
+      auto& svc = ArmorAddonOverrideService::GetInstance();
+      std::vector<RE::TESObjectARMO*> armors;
+      //
+      auto greybeardRobes = (RE::TESObjectARMO*) DYNAMIC_CAST(LookupFormByID(0x00036A44), TESForm, TESObjectARMO);
+      auto greybeardBoots = (RE::TESObjectARMO*) DYNAMIC_CAST(LookupFormByID(0x00036A46), TESForm, TESObjectARMO);
+      if (greybeardRobes)
+         armors.push_back(greybeardRobes);
+      if (greybeardBoots)
+         armors.push_back(greybeardBoots);
+      svc.addOutfit("Test outfit", armors);
+      svc.setOutfit("Test outfit");
+      svc.enabled = true;
+   } else if (message->type == SKSEMessagingInterface::kMessage_NewGame) {
+   } else if (message->type == SKSEMessagingInterface::kMessage_PreLoadGame) {
    }
 };

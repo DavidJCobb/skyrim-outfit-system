@@ -5,7 +5,7 @@ namespace SkyrimOutfitSystem {
    namespace Patches {
       namespace Exploratory {
          void Apply() {
-            OverridePlayerSkinning::Apply();
+            //OverridePlayerSkinning::Apply();
          }
       }
    }
