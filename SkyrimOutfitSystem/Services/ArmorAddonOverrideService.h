@@ -8,6 +8,8 @@ namespace RE {
 struct Outfit {
    std::string name;
    std::vector<RE::TESObjectARMO*> armors;
+
+   bool hasShield() const;
 };
 static Outfit g_noOutfit;
 

@@ -1,5 +1,6 @@
 #include "OverridePlayerSkinning.h"
 //
+#include "ReverseEngineered/ExtraData.h"
 #include "ReverseEngineered/Forms/Actor.h"
 #include "ReverseEngineered/Forms/TESObjectREFR.h"
 #include "ReverseEngineered/Forms/BaseForms/TESNPC.h"
@@ -59,12 +60,25 @@ namespace SkyrimOutfitSystem {
             // don't patch: TESNPC::Subroutine00561FF0. When is this other 
             // method called? Do we need to patch it?
             //
+            bool _stdcall ShouldOverride(RE::TESObjectREFR* target, RE::TESObjectARMO* armor) {
+               if (!ShouldOverrideSkinning(target))
+                  return false;
+               if (armor->IsShield()) {
+                  auto& svc = ArmorAddonOverrideService::GetInstance();
+                  auto& outfit = svc.currentOutfit;
+                  if (!outfit.hasShield()) {
+                     return false;
+                  }
+               }
+               return true;
+            }
             _declspec(naked) void Outer() {
                _asm {
                   push ecx; // protect
                   mov  eax, dword ptr [esp + 0x20]; // esp + 0x10, offset by our push and three args
+                  push ecx;
                   push eax;
-                  call ShouldOverrideSkinning; // stdcall
+                  call ShouldOverride; // stdcall
                   pop  ecx; // restore
                   test al, al;
                   jnz  lSuppressVanilla;
@@ -88,14 +102,36 @@ namespace SkyrimOutfitSystem {
             // GetWornMaskVisitor object and uses it... and then find that 
             // subroutine's caller.
             //
-            UInt32 _stdcall OverrideWornFlags() {
+            class _ShieldVisitor : public RE::ExtraContainerChanges::InventoryVisitor {
+               private:
+                  virtual BOOL Visit(RE::InventoryEntryData* data) override {
+                     auto form = data->type;
+                     if (form && form->formType == kFormType_Armor) {
+                        auto armor = (RE::TESObjectARMO*) form;
+                        if (armor->IsShield())
+                           this->mask |= armor->bipedObject.data.parts;
+                     }
+                     return true;
+                  };
+               public:
+                  UInt32 mask = 0;
+            };
+            //
+            UInt32 _stdcall OverrideWornFlags(RE::ExtraContainerChanges::Data* inventory) {
                UInt32 mask = 0;
                //
-               auto& armors = GetOverrideArmors();
+               auto& svc    = ArmorAddonOverrideService::GetInstance();
+               auto& outfit = svc.currentOutfit;
+               auto& armors = outfit.armors;
                for (auto it = armors.cbegin(); it != armors.cend(); ++it) {
                   RE::TESObjectARMO* armor = *it;
                   if (armor)
                      mask |= armor->bipedObject.data.parts;
+               }
+               if (!outfit.hasShield()) {
+                  _ShieldVisitor visitor;
+                  CALL_MEMBER_FN(inventory, ExecuteVisitorOnWorn)(&visitor);
+                  mask |= visitor.mask;
                }
                //
                return mask;
@@ -103,7 +139,7 @@ namespace SkyrimOutfitSystem {
             __declspec(naked) void Outer() {
                _asm {
                   push ebx;
-                  call ShouldOverrideSkinning;
+                  call ShouldOverrideSkinning; // stdcall
                   test al, al;
                   jnz  lSuppressVanilla;
                   mov  eax, 0x004768D0; // reproduce patched-over call to GetBodyPartFlagsOnAllWorn(ExtraContainerChanges::Data*)
@@ -114,7 +150,9 @@ namespace SkyrimOutfitSystem {
                   // the call we're replacing was non-member, so we shouldn't clean 
                   // up the stack; the caller will do that itself.
                   //
-                  call OverrideWornFlags;
+                  mov  eax, dword ptr [esp];
+                  push eax;
+                  call OverrideWornFlags; // stdcall
                lExit:
                   mov  ecx, 0x00566519;
                   jmp  ecx;

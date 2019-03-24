@@ -1,4 +1,17 @@
 #include "ArmorAddonOverrideService.h"
+#include "ReverseEngineered/Forms/BaseForms/TESObjectARMO.h"
+
+bool Outfit::hasShield() const {
+   auto& list = this->armors;
+   for (auto it = list.cbegin(); it != list.cend(); ++it) {
+      RE::TESObjectARMO* armor = *it;
+      if (armor) {
+         if (armor->IsShield())
+            return true;
+      }
+   }
+   return false;
+};
 
 void ArmorAddonOverrideService::addOutfit(const char* name, std::vector<RE::TESObjectARMO*> armors) {
    auto created = Outfit();
