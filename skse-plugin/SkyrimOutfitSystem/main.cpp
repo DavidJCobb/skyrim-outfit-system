@@ -9,6 +9,7 @@
 
 //#include "Services/INI.h"
 #include "Services/ArmorAddonOverrideService.h"
+#include "Services/StorableObject.h"
 #include "Patches/Exploratory.h"
 #include "Patches/OverridePlayerSkinning.h"
 #include "Papyrus/OutfitSystem.h"
@@ -21,10 +22,14 @@ SKSEPapyrusInterface*       g_papyrus            = nullptr;
 SKSEMessagingInterface*     g_ISKSEMessaging     = nullptr;
 SKSESerializationInterface* g_ISKSESerialization = nullptr;
 
-static const char*  g_pluginName = "SkyrimOutfitSystem";
-const UInt32 g_pluginVersion = 0x01000000; // 0xAABBCCDD = AA.BB.CC.DD with values converted to decimal // major.minor.update.internal-build-or-zero
+static UInt32 g_pluginSerializationSignature = 'cOft'; // TODO: Confirm with SKSE team
+
+static const char* g_pluginName    = "SkyrimOutfitSystem";
+const UInt32       g_pluginVersion = 0x01000000; // 0xAABBCCDD = AA.BB.CC.DD with values converted to decimal // major.minor.update.internal-build-or-zero
 
 void Callback_Messaging_SKSE(SKSEMessagingInterface::Message* message);
+void Callback_Serialization_Save(SKSESerializationInterface * intfc);
+void Callback_Serialization_Load(SKSESerializationInterface * intfc);
 
 extern "C" {
    //
@@ -114,6 +119,12 @@ extern "C" {
       {  // Messaging callbacks.
          g_ISKSEMessaging->RegisterListener(g_pluginHandle, "SKSE", Callback_Messaging_SKSE);
       }
+      {  // Serialization callbacks.
+         g_ISKSESerialization->SetUniqueID(g_pluginHandle, g_pluginSerializationSignature);
+         //g_ISKSESerialization->SetRevertCallback  (g_pluginHandle, Callback_Serialization_Revert);
+         g_ISKSESerialization->SetSaveCallback(g_pluginHandle, Callback_Serialization_Save);
+         g_ISKSESerialization->SetLoadCallback(g_pluginHandle, Callback_Serialization_Load);
+      }
       {  // Papyrus registrations
          g_papyrus = (SKSEPapyrusInterface*)skse->QueryInterface(kInterface_Papyrus);
          _RegisterAndEchoPapyrus(CobbPapyrus::OutfitSystem::Register, "SkyrimOutfitSystemNativeFuncs");
@@ -126,22 +137,53 @@ void Callback_Messaging_SKSE(SKSEMessagingInterface::Message* message) {
    if (message->type == SKSEMessagingInterface::kMessage_PostLoad) {
    } else if (message->type == SKSEMessagingInterface::kMessage_PostPostLoad) {
    } else if (message->type == SKSEMessagingInterface::kMessage_DataLoaded) {
-      //
-      // TEST TEST TEST TEST TEST
-      //
-      auto& svc = ArmorAddonOverrideService::GetInstance();
-      std::vector<RE::TESObjectARMO*> armors;
-      //
-      auto greybeardRobes = (RE::TESObjectARMO*) DYNAMIC_CAST(LookupFormByID(0x00036A44), TESForm, TESObjectARMO);
-      auto greybeardBoots = (RE::TESObjectARMO*) DYNAMIC_CAST(LookupFormByID(0x00036A46), TESForm, TESObjectARMO);
-      if (greybeardRobes)
-         armors.push_back(greybeardRobes);
-      if (greybeardBoots)
-         armors.push_back(greybeardBoots);
-      svc.addOutfit("Test outfit", armors);
-      svc.setOutfit("Test outfit");
-      svc.enabled = true;
    } else if (message->type == SKSEMessagingInterface::kMessage_NewGame) {
+      ArmorAddonOverrideService::GetInstance().reset();
    } else if (message->type == SKSEMessagingInterface::kMessage_PreLoadGame) {
+      ArmorAddonOverrideService::GetInstance().reset(); // AAOS::load resets as well, but this is needed in case the save we're about to load doesn't have any AAOS data.
    }
 };
+void Callback_Serialization_Save(SKSESerializationInterface* intfc) {
+   _MESSAGE("Saving...");
+   //
+   if (intfc->OpenRecord(ArmorAddonOverrideService::signature, ArmorAddonOverrideService::kSaveVersion)) {
+      try {
+         auto& service = ArmorAddonOverrideService::GetInstance();
+         service.save(intfc);
+      } catch (const ArmorAddonOverrideService::save_error& exception) {
+         _MESSAGE("Save FAILED for ArmorAddonOverrideService.");
+         _MESSAGE(" - Exception string: %s", exception.what());
+      }
+   } else
+      _MESSAGE("Save FAILED for ArmorAddonOverrideService. Record didn't open.");
+   //
+   _MESSAGE("Saving done!");
+}
+void Callback_Serialization_Load(SKSESerializationInterface* intfc) {
+   _MESSAGE("Loading...");
+   //
+   UInt32 type;    // This IS correct. A UInt32 and a four-character ASCII string have the same length (and can be read interchangeably, it seems).
+   UInt32 version;
+   UInt32 length;
+   bool   error = false;
+   //
+   while (!error && intfc->GetNextRecordInfo(&type, &version, &length)) {
+      switch (type) {
+         case ArmorAddonOverrideService::signature:
+            try {
+               auto& service = ArmorAddonOverrideService::GetInstance();
+               service.load(intfc, version);
+            } catch (const ArmorAddonOverrideService::load_error& exception) {
+               _MESSAGE("Load FAILED for ArmorAddonOverrideService.");
+               _MESSAGE(" - Exception string: %s", exception.what());
+            }
+            break;
+         default:
+            _MESSAGE("Loading: Unhandled type %c%c%c%c", (char)(type >> 0x18), (char)(type >> 0x10), (char)(type >> 0x8), (char)type);
+            error = true;
+            break;
+      }
+   }
+   //
+   _MESSAGE("Loading done!");
+}

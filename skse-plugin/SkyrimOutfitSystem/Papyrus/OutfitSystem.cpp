@@ -9,6 +9,19 @@
 
 namespace CobbPapyrus {
    namespace OutfitSystem {
+      bool ArmorConflictsWithOutfit(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, RE::TESObjectARMO* armor, BSFixedString name) {
+         auto& service = ArmorAddonOverrideService::GetInstance();
+         try {
+            auto& outfit = service.getOutfit(name.data);
+            return outfit.conflictsWith(armor);
+         } catch (std::out_of_range) {
+            return false;
+         }
+      }
+      void DeleteOutfit(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, BSFixedString name) {
+         auto& service = ArmorAddonOverrideService::GetInstance();
+         service.deleteOutfit(name.data);
+      }
       VMResultArray<RE::TESObjectARMO*> GetOutfitContents(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, BSFixedString name) {
          VMResultArray<RE::TESObjectARMO*> result;
          auto& service = ArmorAddonOverrideService::GetInstance();
@@ -41,16 +54,15 @@ namespace CobbPapyrus {
       void OverwriteOutfit(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, BSFixedString name, VMArray<RE::TESObjectARMO*> armors) {
          auto& service = ArmorAddonOverrideService::GetInstance();
          //
-         std::vector<RE::TESObjectARMO*> list;
+         auto& outfit = service.getOrCreateOutfit(name.data);
+         outfit.armors.clear();
          auto count = armors.Length();
-         list.reserve(count);
-         for (UInt32 i = 1; i < count; i++) {
+         for (UInt32 i = 0; i < count; i++) {
             RE::TESObjectARMO* ptr = nullptr;
             armors.Get(&ptr, i);
             if (ptr)
-               list.push_back(ptr);
+               outfit.armors.insert(ptr);
          }
-         service.addOutfit(name.data, list);
       }
       void SetEnabled(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, bool state) {
          auto& service = ArmorAddonOverrideService::GetInstance();
@@ -64,6 +76,18 @@ namespace CobbPapyrus {
 }
 
 bool CobbPapyrus::OutfitSystem::Register(VMClassRegistry* registry) {
+   registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, bool, RE::TESObjectARMO*, BSFixedString>(
+      "ArmorConflictsWithOutfit",
+      "SkyrimOutfitSystemNativeFuncs",
+      ArmorConflictsWithOutfit,
+      registry
+   ));
+   registry->RegisterFunction(new NativeFunction1<StaticFunctionTag, void, BSFixedString>(
+      "DeleteOutfit",
+      "SkyrimOutfitSystemNativeFuncs",
+      DeleteOutfit,
+      registry
+   ));
    registry->RegisterFunction(new NativeFunction1<StaticFunctionTag, VMResultArray<RE::TESObjectARMO*>, BSFixedString>(
       "GetOutfitContents",
       "SkyrimOutfitSystemNativeFuncs",

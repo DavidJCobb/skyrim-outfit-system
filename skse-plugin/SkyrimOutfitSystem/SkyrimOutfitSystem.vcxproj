@@ -191,6 +191,7 @@ ItemList = new Microsoft.Build.Framework.ITaskItem[0];
     <ClCompile Include="Patches\OverridePlayerSkinning.cpp" />
     <ClCompile Include="Services\ArmorAddonOverrideService.cpp" />
     <ClCompile Include="Services\INI.cpp" />
+    <ClCompile Include="Services\StorableObject.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="exports.def" />
@@ -202,6 +203,7 @@ ItemList = new Microsoft.Build.Framework.ITaskItem[0];
     <ClInclude Include="Patches\OverridePlayerSkinning.h" />
     <ClInclude Include="Services\ArmorAddonOverrideService.h" />
     <ClInclude Include="Services\INI.h" />
+    <ClInclude Include="Services\StorableObject.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\skse\skse.vcxproj">
