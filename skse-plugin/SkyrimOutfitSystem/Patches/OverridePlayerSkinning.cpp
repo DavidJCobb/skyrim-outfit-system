@@ -21,7 +21,7 @@ namespace SkyrimOutfitSystem {
          }
          const std::set<RE::TESObjectARMO*>& GetOverrideArmors() {
             auto& svc = ArmorAddonOverrideService::GetInstance();
-            return svc.currentOutfit.armors;
+            return svc.currentOutfit().armors;
          }
          //
          // The normal process for equipping armor works as follows:
@@ -65,7 +65,7 @@ namespace SkyrimOutfitSystem {
                   return false;
                if (armor->IsShield()) {
                   auto& svc = ArmorAddonOverrideService::GetInstance();
-                  auto& outfit = svc.currentOutfit;
+                  auto& outfit = svc.currentOutfit();
                   if (!outfit.hasShield()) {
                      return false;
                   }
@@ -125,7 +125,7 @@ namespace SkyrimOutfitSystem {
                UInt32 mask = 0;
                //
                auto& svc    = ArmorAddonOverrideService::GetInstance();
-               auto& outfit = svc.currentOutfit;
+               auto& outfit = svc.currentOutfit();
                auto& armors = outfit.armors;
                for (auto it = armors.cbegin(); it != armors.cend(); ++it) {
                   RE::TESObjectARMO* armor = *it;

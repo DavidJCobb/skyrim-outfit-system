@@ -124,7 +124,21 @@ namespace CobbPapyrus {
          }
       }
       //
+      void AddArmorToOutfit(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, BSFixedString name, RE::TESObjectARMO* armor) {
+         ERROR_AND_RETURN_IF(armor == nullptr, "Cannot add a None armor to an outfit.", registry, stackId);
+         auto& service = ArmorAddonOverrideService::GetInstance();
+         try {
+            auto& outfit = service.getOutfit(name.data);
+            outfit.armors.insert(armor);
+         } catch (std::out_of_range) {
+            registry->LogWarning("The specified outfit does not exist.", stackId);
+         }
+      }
       bool ArmorConflictsWithOutfit(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, RE::TESObjectARMO* armor, BSFixedString name) {
+         if (armor == nullptr) {
+            registry->LogWarning("A None armor can't conflict with anything in an outfit.", stackId);
+            return false;
+         }
          auto& service = ArmorAddonOverrideService::GetInstance();
          try {
             auto& outfit = service.getOutfit(name.data);
@@ -162,7 +176,7 @@ namespace CobbPapyrus {
       }
       BSFixedString GetSelectedOutfit(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*) {
          auto& service = ArmorAddonOverrideService::GetInstance();
-         return service.currentOutfit.name.c_str();
+         return service.currentOutfit().name.c_str();
       }
       bool IsEnabled(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*) {
          auto& service = ArmorAddonOverrideService::GetInstance();
@@ -177,6 +191,45 @@ namespace CobbPapyrus {
          for (auto it = intermediate.begin(); it != intermediate.end(); ++it)
             result.push_back(it->c_str());
          return result;
+      }
+      void RemoveConflictingArmorsFrom(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, RE::TESObjectARMO* armor, BSFixedString name) {
+         ERROR_AND_RETURN_IF(armor == nullptr, "A None armor can't conflict with anything in an outfit.", registry, stackId);
+         auto& service = ArmorAddonOverrideService::GetInstance();
+         try {
+            auto& outfit = service.getOutfit(name.data);
+            auto& armors = outfit.armors;
+            std::vector<RE::TESObjectARMO*> conflicts;
+            UInt32 candidateMask = armor->bipedObject.data.parts;
+            for (auto it = armors.begin(); it != armors.end(); ++it) {
+               RE::TESObjectARMO* existing = *it;
+               if (existing) {
+                  UInt32 mask = existing->bipedObject.data.parts;
+                  if (mask & candidateMask)
+                     conflicts.push_back(existing);
+               }
+            }
+            for (auto it = conflicts.begin(); it != conflicts.end(); ++it)
+               armors.erase(*it);
+         } catch (std::out_of_range) {
+            registry->LogError("The specified outfit does not exist.", stackId);
+            return;
+         }
+      }
+      bool RenameOutfit(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, BSFixedString name, BSFixedString changeTo) {
+         auto& service = ArmorAddonOverrideService::GetInstance();
+         try {
+            service.renameOutfit(name.data, changeTo.data);
+         } catch (ArmorAddonOverrideService::bad_name) {
+            registry->LogError("The desired name is invalid.", stackId);
+            return false;
+         } catch (ArmorAddonOverrideService::name_conflict) {
+            registry->LogError("The desired name is taken.", stackId);
+            return false;
+         } catch (std::out_of_range) {
+            registry->LogError("The specified outfit does not exist.", stackId);
+            return false;
+         }
+         return true;
       }
       bool OutfitExists(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, BSFixedString name) {
          auto& service = ArmorAddonOverrideService::GetInstance();
@@ -263,6 +316,12 @@ bool CobbPapyrus::OutfitSystem::Register(VMClassRegistry* registry) {
       ));
    }
    //
+   registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, void, BSFixedString, RE::TESObjectARMO*>(
+      "AddArmorToOutfit",
+      "SkyrimOutfitSystemNativeFuncs",
+      AddArmorToOutfit,
+      registry
+   ));
    registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, bool, RE::TESObjectARMO*, BSFixedString>(
       "ArmorConflictsWithOutfit",
       "SkyrimOutfitSystemNativeFuncs",
@@ -303,6 +362,18 @@ bool CobbPapyrus::OutfitSystem::Register(VMClassRegistry* registry) {
       "ListOutfits",
       "SkyrimOutfitSystemNativeFuncs",
       ListOutfits,
+      registry
+   ));
+   registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, void, RE::TESObjectARMO*, BSFixedString>(
+      "RemoveConflictingArmorsFrom",
+      "SkyrimOutfitSystemNativeFuncs",
+      RemoveConflictingArmorsFrom,
+      registry
+   ));
+   registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, bool, BSFixedString, BSFixedString>(
+      "RenameOutfit",
+      "SkyrimOutfitSystemNativeFuncs",
+      RenameOutfit,
       registry
    ));
    registry->RegisterFunction(new NativeFunction1<StaticFunctionTag, bool, BSFixedString>(

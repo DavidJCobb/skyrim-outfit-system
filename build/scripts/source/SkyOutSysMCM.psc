@@ -1,19 +1,21 @@
 Scriptname SkyOutSysMCM extends SKI_ConfigBase Hidden
 
-Bool _bEditingOutfit = false
-
 Int      _iOutfitBrowserPage   = 0
 Int      _iOutfitNameMaxBytes = 256 ; should never change at run-time; can change if the DLL is revised appropriately
 String[] _sOutfitNames
 String   _sSelectedOutfit = ""
+
 String   _sEditingOutfit = ""
 String   _sOutfitShowingContextMenu = ""
 Int      _iOutfitEditorBodySlotPage = 0
 
 String[] _sOutfitSlotNames
 String[] _sOutfitSlotArmors
-;Form[]   _kOutfitSlotArmors ; must be a Form array so we can resize it
 Armor[]  _kOutfitSlotArmors
+Armor[]  _kOutfitContents
+
+String[] _sOutfitEditor_AddCandidates
+Armor[]  _kOutfitEditor_AddCandidates
 
 Int Function GetVersion()
 	return 0x01000000
@@ -24,19 +26,23 @@ EndEvent
 Event OnConfigOpen()
    _iOutfitNameMaxBytes = SkyrimOutfitSystemNativeFuncs.GetOutfitNameMaxLength()
    ResetOutfitBrowser()
+   ResetOutfitEditor()
    RefreshCache()
 EndEvent
 Event OnConfigClose()
    SkyrimOutfitSystemNativeFuncs.RefreshArmorFor(Game.GetPlayer())
+   ResetOutfitBrowser()
+   ResetOutfitEditor()
 EndEvent
 Event OnPageReset(String asPage)
-   If asPage == "$Options"
-      ResetOutfitBrowser()
+   If asPage == "$SkyOutSys_MCM_Options"
+      ResetOutfitEditor()
       ShowOptions()
    ElseIf asPage == "$SkyOutSys_MCM_OutfitList"
-      If _bEditingOutfit
+      If _sEditingOutfit
          ShowOutfitEditor()
       Else
+         ResetOutfitEditor()
          ShowOutfitList()
       EndIf
    EndIf
@@ -48,21 +54,48 @@ Function RefreshCache()
 EndFunction
 
 Function ResetOutfitBrowser()
-   _bEditingOutfit       = false
    _iOutfitBrowserPage   = 0
    _iOutfitEditorBodySlotPage = 0
    _sEditingOutfit       = ""
    _sOutfitShowingContextMenu = ""
+   _sOutfitNames = new String[1]
+EndFunction
+Function ResetOutfitEditor()
+   _sOutfitSlotNames  = new String[1]
+   _sOutfitSlotArmors = new String[1]
+   _kOutfitSlotArmors = new Armor[1]
+   _kOutfitContents   = new Armor[1]
+   _sOutfitEditor_AddCandidates = new String[1]
+   _kOutfitEditor_AddCandidates = new Armor[1]
 EndFunction
 
-Int Function BodySlotToMask(Int aiSlot) Global
-   Return Math.LeftShift(1, aiSlot - 30)
-EndFunction
-String Function BodySlotName(Int aiSlot) Global
-   Return "$SkyOutSys_BodySlot" + aiSlot
-EndFunction
+;/Block/; ; Helpers
+   Int Function BodySlotToMask(Int aiSlot) Global
+      Return Math.LeftShift(1, aiSlot - 30)
+   EndFunction
+   String Function BodySlotName(Int aiSlot) Global
+      Return "$SkyOutSys_BodySlot" + aiSlot
+   EndFunction
+   String[] Function PrependStringToArray(String[] asMenu, String asPrepend)
+      Int      iCount = asMenu.Length
+      String[] kOut   = Utility.CreateStringArray(iCount + 1)
+      kOut[0] = asPrepend
+      Int iIterator = 0
+      While iIterator < iCount
+         Int iTemporary = iIterator + 1
+         kOut[iTemporary] = asMenu[iIterator]
+         iIterator = iTemporary
+      EndWhile
+      Return kOut
+   EndFunction
+;/EndBlock/;
 
 Function SetupSlotDataForOutfit(String asOutfitName)
+   _kOutfitContents = SkyrimOutfitSystemNativeFuncs.GetOutfitContents(asOutfitName)
+   ;
+   ; This process is doable in Papyrus, but not without a significant 
+   ; performance hit. It's fast in the DLL.
+   ;
    SkyrimOutfitSystemNativeFuncs.PrepOutfitBodySlotListing(asOutfitName)
    Int[] iSlots = SkyrimOutfitSystemNativeFuncs.GetOutfitBodySlotListingSlotIndices()
    _sOutfitSlotNames = Utility.CreateStringArray(iSlots.Length)
@@ -74,52 +107,6 @@ Function SetupSlotDataForOutfit(String asOutfitName)
    _sOutfitSlotArmors = SkyrimOutfitSystemNativeFuncs.GetOutfitBodySlotListingArmorNames()
    _kOutfitSlotArmors = SkyrimOutfitSystemNativeFuncs.GetOutfitBodySlotListingArmorForms()
    SkyrimOutfitSystemNativeFuncs.ClearOutfitBodySlotListing()
-   ;/
-   ;
-   ; TODO: This process incurs a significant performance penalty; 
-   ; we should move it to the DLL.
-   ;
-   _sOutfitSlotNames  = new String[32]
-   _sOutfitSlotArmors = new String[32]
-   _kOutfitSlotArmors = new Form[32] ; must be a Form array so we can resize it
-   Int iArraySize = 0
-   ;
-   Armor[] kArmors = SkyrimOutfitSystemNativeFuncs.GetOutfitContents(asOutfitName)
-   Int iIteratorBS = 30
-   While iIteratorBS < 62
-      Int    iMask      = BodySlotToMask(iIteratorBS)
-      String sMask      = BodySlotName(iIteratorBS)
-      Int    iIteratorA = 0
-      While iIteratorA < kArmors.Length
-         Armor kCurrent   = kArmors[iIteratorA]
-         Int   iArmorMask = kCurrent.GetSlotMask()
-         If Math.LogicalAnd(iArmorMask, iMask)
-            _sOutfitSlotNames[iArraySize]  = sMask
-            _sOutfitSlotArmors[iArraySize] = kCurrent.GetName()
-            _kOutfitSlotArmors[iArraySize] = kCurrent
-            ;
-            iArraySize = iArraySize + 1
-            If iArraySize >= _sOutfitSlotNames.Length
-               Int iNewSize = _sOutfitSlotNames.Length + 8
-               ;
-               ; Reallocate.
-               ;
-               _sOutfitSlotNames  = Utility.ResizeStringArray(_sOutfitSlotNames, iNewSize)
-               _sOutfitSlotArmors = Utility.ResizeStringArray(_sOutfitSlotArmors, iNewSize)
-               _kOutfitSlotArmors = Utility.ResizeFormArray(_kOutfitSlotArmors, iNewSize)
-            EndIf
-         EndIf
-         iIteratorA = iIteratorA + 1
-      EndWhile
-      iIteratorBS = iIteratorBS + 1
-   EndWhile
-   ;
-   ; Shrink arrays to fit:
-   ;
-   _sOutfitSlotNames  = Utility.ResizeStringArray(_sOutfitSlotNames,  iArraySize)
-   _sOutfitSlotArmors = Utility.ResizeStringArray(_sOutfitSlotArmors, iArraySize)
-   _kOutfitSlotArmors = Utility.ResizeFormArray  (_kOutfitSlotArmors, iArraySize)
-   /;
 EndFunction
 
 ;/Block/; ; Default handlers
@@ -159,9 +146,13 @@ EndFunction
 ;/Block/; ; Outfit editing
    Function StartEditingOutfit(String asOutfitName)
       _sEditingOutfit = asOutfitName
-      _bEditingOutfit = True
       SetupSlotDataForOutfit(_sEditingOutfit)
       _iOutfitEditorBodySlotPage = 0
+      ForcePageReset()
+   EndFunction
+   Function StopEditingOutfit()
+      _sOutfitShowingContextMenu = _sEditingOutfit
+      _sEditingOutfit = ""
       ForcePageReset()
    EndFunction
    
@@ -294,12 +285,11 @@ EndFunction
             If !_sOutfitShowingContextMenu
                Return
             EndIf
-            Bool bSwap = ShowMessage("$SkyOutSys_Confirm_Delete_Text{" + _sOutfitShowingContextMenu + "}", True, "$SkyOutSys_Confirm_Delete_Yes", "$SkyOutSys_Confirm_Delete_No")
-            If bSwap
+            Bool bDelete = ShowMessage("$SkyOutSys_Confirm_Delete_Text{" + _sOutfitShowingContextMenu + "}", True, "$SkyOutSys_Confirm_Delete_Yes", "$SkyOutSys_Confirm_Delete_No")
+            If bDelete
                SkyrimOutfitSystemNativeFuncs.DeleteOutfit(_sOutfitShowingContextMenu)
-               _sOutfitShowingContextMenu = ""
                RefreshCache()
-               ForcePageReset()
+               StopEditingOutfit()
             EndIf
          EndEvent
       EndState
@@ -309,13 +299,13 @@ EndFunction
          SetCursorFillMode(TOP_TO_BOTTOM)
          ;/Block/; ; Left column
             SetCursorPosition(0)
-            AddHeaderOption("$SkyOutSys_MCMHeader_OutfitEditor{" + _sEditingOutfit + "}")
+            AddHeaderOption ("$SkyOutSys_MCMHeader_OutfitEditor{" + _sEditingOutfit + "}")
+            AddTextOptionST ("OutfitEditor_Back",        "$SkyOutSys_OEdit_Back", "")
+            AddInputOptionST("OutfitEditor_Rename",      "$SkyOutSys_OEdit_Rename", "")
+            AddMenuOptionST ("OutfitEditor_AddFromWorn", "$SkyOutSys_OEdit_AddFromWorn", "")
             ;
             ; TODO:
             ;
-            ;  - Rename
-            ;  - Add item from current equipment
-            ;     - pop a menu of the player's equipment
             ;  - Add item by form ID
             ;  - Add item by name
             ;     - a menu of every armor form in the game
@@ -343,6 +333,23 @@ EndFunction
             ;    in the outfit (i.e. the user has chosen to enable the 
             ;    use of conflicting armors), then show the slot multiple 
             ;    times, once for each armor.
+            ;
+            ;     - As of this writing, conflicting armors don't actually 
+            ;       work in our patch; the last armor for a slot "wins." 
+            ;       However, there are no real engine limitations on how 
+            ;       many ArmorAddons can cover a given body part; if we 
+            ;       were to reconfigure our patch, then we could allow 
+            ;       users to enable conflicts on a per-armor basis. As 
+            ;       such, this approach is prep work for that.
+            ;
+            ;       (During early development, it wasn't immediately 
+            ;       clear whether our patch supported conflicting slots; 
+            ;       random tinkering in the R&D stage proved that the 
+            ;       innermost bits of the armor system allow conflicts, 
+            ;       but I didn't know whether my patch was low-level 
+            ;       enough to take advantage of that. This approach to 
+            ;       listing the outfit contents was designed at that 
+            ;       stage of development.)
             ;
             Int iSlotCount = _sOutfitSlotNames.Length
             If iSlotCount > 11
@@ -396,5 +403,95 @@ EndFunction
             EndIf
          ;/EndBlock/;
       EndFunction
+      Function AddArmorToOutfit(Armor kAdd)
+         If !kAdd || !_sEditingOutfit
+            Return
+         EndIf
+         If SkyrimOutfitSystemNativeFuncs.ArmorConflictsWithOutfit(kAdd, _sEditingOutfit)
+            Bool bSwap = ShowMessage("$SkyOutSys_Confirm_BodySlotConflict_Text", True, "$SkyOutSys_Confirm_BodySlotConflict_Yes", "$SkyOutSys_Confirm_BodySlotConflict_No")
+            If bSwap
+               SkyrimOutfitSystemNativeFuncs.RemoveConflictingArmorsFrom(kAdd, _sEditingOutfit)
+            Else
+               Return
+            EndIf
+         EndIf
+         SkyrimOutfitSystemNativeFuncs.AddArmorToOutfit(_sEditingOutfit, kAdd)
+         SetupSlotDataForOutfit(_sEditingOutfit)
+         ForcePageReset()
+      EndFunction
+      State OutfitEditor_Back
+         Event OnSelectST()
+            StopEditingOutfit()
+            ForcePageReset()
+         EndEvent
+      EndState
+      State OutfitEditor_Rename
+         Event OnInputOpenST()
+            SetInputDialogStartText("outfit name or blank to cancel")
+         EndEvent
+         Event OnInputAcceptST(String asTextEntry)
+            If !asTextEntry
+               Return
+            EndIf
+            If asTextEntry == _sEditingOutfit
+               Return
+            EndIf
+            If StringUtil.GetLength(asTextEntry) > _iOutfitNameMaxBytes
+               ShowMessage("$SkyOutSys_Err_OutfitNameTooLong", False, "$SkyOutSys_ErrDismiss")
+               Return
+            EndIf
+            If SkyrimOutfitSystemNativeFuncs.OutfitExists(asTextEntry)
+               ShowMessage("$SkyOutSys_Err_OutfitNameTaken", False, "$SkyOutSys_ErrDismiss")
+               Return
+            EndIf
+            Bool bSuccess = SkyrimOutfitSystemNativeFuncs.RenameOutfit(_sEditingOutfit, asTextEntry)
+            If bSuccess
+               _sEditingOutfit = asTextEntry
+               RefreshCache()
+               ForcePageReset()
+            EndIf
+         EndEvent
+      EndState
+      State OutfitEditor_AddFromWorn
+         Event OnMenuOpenST()
+            _kOutfitEditor_AddCandidates = SkyrimOutfitSystemNativeFuncs.GetWornItems(Game.GetPlayer())
+            Int iCount = _kOutfitEditor_AddCandidates.Length
+            _sOutfitEditor_AddCandidates = Utility.CreateStringArray(iCount)
+            Int iIterator = 0
+            While iIterator < iCount
+               Armor  kCurrent = _kOutfitEditor_AddCandidates[iIterator]
+               String sCurrent = ""
+               If kCurrent
+                  sCurrent = kCurrent.GetName()
+               EndIf
+               If !sCurrent
+                  sCurrent = "$SkyOutSys_NamelessArmor"
+               EndIf
+               _sOutfitEditor_AddCandidates[iIterator] = sCurrent
+               iIterator = iIterator + 1
+            EndWhile
+            ;
+            String[] sMenu = PrependStringToArray(_sOutfitEditor_AddCandidates, "$SkyOutSys_OEdit_AddCancel")
+            ;
+            SetMenuDialogOptions(sMenu)
+            SetMenuDialogStartIndex(0)
+            SetMenuDialogDefaultIndex(0)
+         EndEvent
+         Event OnMenuAcceptST(Int aiIndex)
+            aiIndex = aiIndex - 1 ; first menu item is a "cancel" option
+            If aiIndex < 0 ; user canceled
+               _sOutfitEditor_AddCandidates = new String[1]
+               _kOutfitEditor_AddCandidates = new Armor[1]
+               Return
+            EndIf
+            Armor kCurrent = _kOutfitEditor_AddCandidates[aiIndex]
+            _sOutfitEditor_AddCandidates = new String[1]
+            _kOutfitEditor_AddCandidates = new Armor[1]
+            If kCurrent
+               AddArmorToOutfit(kCurrent)
+            EndIf
+         EndEvent
+         
+      EndState
    ;/EndBlock/;
 ;/EndBlock/;

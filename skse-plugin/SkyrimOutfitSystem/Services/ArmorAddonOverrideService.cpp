@@ -67,32 +67,27 @@ void Outfit::save(SKSESerializationInterface* intfc) const {
    }
 }
 
+void ArmorAddonOverrideService::_validateNameOrThrow(const char* outfitName) {
+   if (strcmp(outfitName, g_noOutfitName) == 0)
+      throw bad_name("Outfits can't use a blank name.");
+   if (strlen(outfitName) > ce_outfitNameMaxLength)
+      throw bad_name("The outfit's name is too long.");
+}
+//
 Outfit& ArmorAddonOverrideService::getOutfit(const char* name) {
    return this->outfits.at(name);
 }
 Outfit& ArmorAddonOverrideService::getOrCreateOutfit(const char* name) {
-   if (name == g_noOutfitName)
-      throw bad_name("You cannot create an outfit with a blank name.");
-   //
-   // TODO: Cap the outfit name length, or modify the serialization code so that there is no length limit.
-   //
+   _validateNameOrThrow(name);
    return this->outfits.emplace(name, name).first->second;
 }
-
+//
 void ArmorAddonOverrideService::addOutfit(const char* name) {
-   if (name == g_noOutfitName)
-      throw bad_name("You cannot create an outfit with a blank name.");
-   //
-   // TODO: Cap the outfit name length, or modify the serialization code so that there is no length limit.
-   //
+   _validateNameOrThrow(name);
    this->outfits.emplace(name, name);
 }
 void ArmorAddonOverrideService::addOutfit(const char* name, std::vector<RE::TESObjectARMO*> armors) {
-   if (name == g_noOutfitName)
-      throw bad_name("You cannot create an outfit with a blank name.");
-   //
-   // TODO: Cap the outfit name length, or modify the serialization code so that there is no length limit.
-   //
+   _validateNameOrThrow(name);
    auto& created = this->outfits.emplace(name, name).first->second;
    for (auto it = armors.begin(); it != armors.end(); ++it) {
       auto armor = *it;
@@ -100,6 +95,15 @@ void ArmorAddonOverrideService::addOutfit(const char* name, std::vector<RE::TESO
          created.armors.insert(armor);
    }
 }
+Outfit& ArmorAddonOverrideService::currentOutfit() {
+   if (this->currentOutfitName == g_noOutfitName)
+      return g_noOutfit;
+   try {
+      return this->outfits.at(this->currentOutfitName);
+   } catch (std::out_of_range) {
+      return g_noOutfit;
+   }
+};
 bool ArmorAddonOverrideService::hasOutfit(const char* name) const {
    try {
       this->outfits.at(name);
@@ -110,8 +114,8 @@ bool ArmorAddonOverrideService::hasOutfit(const char* name) const {
 }
 void ArmorAddonOverrideService::deleteOutfit(const char* name) {
    this->outfits.erase(name);
-   if (this->currentOutfit.name == name)
-      this->currentOutfit = g_noOutfit;
+   if (this->currentOutfitName == name)
+      this->currentOutfitName = g_noOutfitName;
 }
 void ArmorAddonOverrideService::modifyOutfit(const char* name, std::vector<RE::TESObjectARMO*>& add, std::vector<RE::TESObjectARMO*>& remove, bool createIfMissing) {
    try {
@@ -134,42 +138,43 @@ void ArmorAddonOverrideService::modifyOutfit(const char* name, std::vector<RE::T
    }
 }
 void ArmorAddonOverrideService::renameOutfit(const char* oldName, const char* newName) {
+   _validateNameOrThrow(newName);
    try {
       this->outfits.at(newName);
       throw name_conflict("");
    } catch (std::out_of_range) {
-      try {
-         auto old = this->outfits.at(oldName);
-         this->outfits.emplace(newName, old);
-         this->outfits.erase(oldName);
-      } catch (std::out_of_range) {}
+      Outfit& renamed = (this->outfits[newName] = this->outfits.at(oldName)); // don't try-catch this "at" call; let the caller catch the exception
+      renamed.name = newName;
+      this->outfits.erase(oldName);
+      if (this->currentOutfitName == oldName)
+         this->currentOutfitName = newName;
    }
 }
 void ArmorAddonOverrideService::setOutfit(const char* name) {
    if (strcmp(name, g_noOutfitName) == 0) {
-      this->currentOutfit = g_noOutfit;
+      this->currentOutfitName = g_noOutfitName;
       return;
    }
    try {
-      Outfit& target = this->getOutfit(name);
-      this->currentOutfit = target;
+      this->getOutfit(name);
+      this->currentOutfitName = name;
    } catch (std::out_of_range) {
       _MESSAGE("ArmorAddonOverrideService: Tried to set non-existent outfit %s as active. Switching the system off for now.", name);
-      this->currentOutfit = g_noOutfit; // no outfit
+      this->currentOutfitName = g_noOutfitName;
    }
 }
 bool ArmorAddonOverrideService::shouldOverride() const noexcept {
    if (!this->enabled)
       return false;
-   if (this->currentOutfit.name == g_noOutfitName)
+   if (this->currentOutfitName == g_noOutfitName)
       return false;
    return true;
 }
-void ArmorAddonOverrideService::getOutfitNames(std::vector<std::string>& out) {
+void ArmorAddonOverrideService::getOutfitNames(std::vector<std::string>& out) const {
    out.clear();
    auto& list = this->outfits;
    out.reserve(list.size());
-   for (auto it = list.begin(); it != list.end(); ++it)
+   for (auto it = list.cbegin(); it != list.cend(); ++it)
       out.push_back(it->second.name);
 }
 void ArmorAddonOverrideService::setEnabled(bool flag) noexcept {
@@ -177,9 +182,8 @@ void ArmorAddonOverrideService::setEnabled(bool flag) noexcept {
 }
 //
 void ArmorAddonOverrideService::reset() {
-   _MESSAGE("ArmorAddonOverrideService::reset();");
    this->enabled = false;
-   this->currentOutfit = g_noOutfit;
+   this->currentOutfitName = g_noOutfitName;
    this->outfits.clear();
 }
 void ArmorAddonOverrideService::load(SKSESerializationInterface* intfc, UInt32 version) {
@@ -204,10 +208,7 @@ void ArmorAddonOverrideService::save(SKSESerializationInterface* intfc) {
    using namespace Serialization;
    //
    _assertWrite(WriteData(intfc, &this->enabled), "Failed to write the enable state.");
-   {  // current outfit
-      auto& outfit = this->currentOutfit;
-      _assertWrite(WriteData(intfc, &outfit.name), "Failed to write the selected outfit name.");
-   }
+   _assertWrite(WriteData(intfc, &this->currentOutfitName), "Failed to write the selected outfit name.");
    UInt32 size = this->outfits.size();
    _assertWrite(WriteData(intfc, &size), "Failed to write the outfit count.");
    for (auto it = this->outfits.cbegin(); it != this->outfits.cend(); ++it) {
@@ -217,4 +218,25 @@ void ArmorAddonOverrideService::save(SKSESerializationInterface* intfc) {
       auto& outfit = it->second;
       outfit.save(intfc);
    }
+}
+//
+void ArmorAddonOverrideService::dump() const {
+   _MESSAGE("Dumping all state for ArmorAddonOverrideService...");
+   _MESSAGE("Enabled: %d", this->enabled);
+   _MESSAGE("We have %d outfits. Enumerating...", this->outfits.size());
+   for (auto it = this->outfits.begin(); it != this->outfits.end(); ++it) {
+      _MESSAGE(" - Key: %s", it->first.c_str());
+      _MESSAGE("    - Name: %s", it->second.name.c_str());
+      _MESSAGE("    - Armors:");
+      auto& list = it->second.armors;
+      for (auto jt = list.begin(); jt != list.end(); ++jt) {
+         auto ptr = *jt;
+         if (ptr) {
+            _MESSAGE("       - (TESObjectARMO*)%08X == [ARMO:%08X]", ptr, ptr->formID);
+         } else {
+            _MESSAGE("       - nullptr");
+         }
+      }
+   }
+   _MESSAGE("All state has been dumped.");
 }
