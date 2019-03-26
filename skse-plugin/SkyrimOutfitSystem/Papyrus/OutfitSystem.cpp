@@ -5,12 +5,21 @@
 #include "skse/PapyrusVM.h"
 
 #include "ReverseEngineered/Forms/BaseForms/TESObjectARMO.h"
+#include "ReverseEngineered/Forms/Actor.h"
 #include "Services/ArmorAddonOverrideService.h"
 
 namespace CobbPapyrus {
    namespace OutfitSystem {
       SInt32 GetOutfitNameMaxLength(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*) {
          return ArmorAddonOverrideService::ce_outfitNameMaxLength;
+      }
+      void RefreshArmorFor(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, RE::Actor* target) {
+         ERROR_AND_RETURN_IF(target == nullptr, "Cannot refresh armor on a None actor.", registry, stackId);
+         auto pm = target->processManager;
+         if (pm) {
+            CALL_MEMBER_FN(pm, SetEquipFlag)(true);
+            CALL_MEMBER_FN(pm, UpdateEquipment)(target);
+         }
       }
       //
       bool ArmorConflictsWithOutfit(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, RE::TESObjectARMO* armor, BSFixedString name) {
@@ -19,6 +28,7 @@ namespace CobbPapyrus {
             auto& outfit = service.getOutfit(name.data);
             return outfit.conflictsWith(armor);
          } catch (std::out_of_range) {
+            registry->LogWarning("The specified outfit does not exist.", stackId);
             return false;
          }
       }
@@ -34,7 +44,9 @@ namespace CobbPapyrus {
             auto& armors = outfit.armors;
             for (auto it = armors.begin(); it != armors.end(); ++it)
                result.push_back(*it);
-         } catch (std::out_of_range) {}
+         } catch (std::out_of_range) {
+            registry->LogWarning("The specified outfit does not exist.", stackId);
+         }
          return result;
       }
       BSFixedString GetSelectedOutfit(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*) {
@@ -84,6 +96,12 @@ bool CobbPapyrus::OutfitSystem::Register(VMClassRegistry* registry) {
       "GetOutfitNameMaxLength",
       "SkyrimOutfitSystemNativeFuncs",
       GetOutfitNameMaxLength,
+      registry
+   ));
+   registry->RegisterFunction(new NativeFunction1<StaticFunctionTag, void, RE::Actor*>(
+      "RefreshArmorFor",
+      "SkyrimOutfitSystemNativeFuncs",
+      RefreshArmorFor,
       registry
    ));
    //

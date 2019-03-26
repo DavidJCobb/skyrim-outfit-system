@@ -26,6 +26,7 @@ Event OnConfigOpen()
    RefreshCache()
 EndEvent
 Event OnConfigClose()
+   SkyrimOutfitSystemNativeFuncs.RefreshArmorFor(Game.GetPlayer())
 EndEvent
 Event OnPageReset(String asPage)
    If asPage == "$Options"
@@ -65,6 +66,7 @@ Function SetupSlotDataForOutfit(String asOutfitName)
    ; TODO: This process incurs a significant performance penalty; 
    ; we should move it to the DLL.
    ;
+   
    _sOutfitSlotNames  = new String[32]
    _sOutfitSlotArmors = new String[32]
    _kOutfitSlotArmors = new Form[32] ; must be a Form array so we can resize it
@@ -145,6 +147,14 @@ EndFunction
 ;/EndBlock/;
 
 ;/Block/; ; Outfit editing
+   Function StartEditingOutfit(String asOutfitName)
+      _sEditingOutfit = asOutfitName
+      _bEditingOutfit = True
+      SetupSlotDataForOutfit(_sEditingOutfit)
+      _iOutfitEditorBodySlotPage = 0
+      ForcePageReset()
+   EndFunction
+   
    ;/Block/; ; Outfit browser
       Function ShowOutfitList()
          SetCursorFillMode(TOP_TO_BOTTOM)
@@ -168,7 +178,11 @@ EndFunction
                EndIf
                While iIterator < iMax
                   String sName = _sOutfitNames[iIterator + iOffset]
-                  AddTextOptionST("OutfitList_Item_" + sName, sName, "")
+                  String sMark = " "
+                  If sName == _sOutfitShowingContextMenu
+                     sMark = "$SkyOutSys_OutfitBrowser_ContextMark"
+                  EndIf
+                  AddTextOptionST("OutfitList_Item_" + sName, sName, sMark)
                   iIterator = iIterator + 1
                EndWhile
                Int iFlagsPrev = OPTION_FLAG_NONE
@@ -185,25 +199,35 @@ EndFunction
                Int iIterator = 0
                While iIterator < _sOutfitNames.Length
                   String sName = _sOutfitNames[iIterator]
-                  AddTextOptionST("OutfitList_Item_" + sName, sName, "")
+                  String sMark = " "
+                  If sName == _sOutfitShowingContextMenu
+                     sMark = "$SkyOutSys_OutfitBrowser_ContextMark"
+                  EndIf
+                  AddTextOptionST("OutfitList_Item_" + sName, sName, sMark)
                   iIterator = iIterator + 1
                EndWhile
             EndIf
          ;/EndBlock/;
          ;/Block/; ; Right column
             SetCursorPosition(1)
-            AddHeaderOption("$SkyOutSys_MCMHeader_OutfitActions")
+            If _sOutfitShowingContextMenu
+               AddHeaderOption("$SkyOutSys_MCMHeader_OutfitActions{" + _sOutfitShowingContextMenu + "}")
+            Else
+               AddHeaderOption("$SkyOutSys_MCMHeader_GeneralActions")
+            EndIf
             AddTextOptionST("OutfitContext_New", "$SkyOutSys_OContext_New", "")
             ;
             Int iContextFlags = OPTION_FLAG_HIDDEN
             If _sOutfitShowingContextMenu
                iContextFlags = OPTION_FLAG_NONE
             EndIf
-            AddTextOptionST("OutfitContext_Edit", "$SkyOutSys_OContext_Edit", "", iContextFlags)
+            If _sSelectedOutfit == _sOutfitShowingContextMenu
+               AddTextOptionST("OutfitContext_Toggle", "$SkyOutSys_OContext_ToggleOff", "", iContextFlags)
+            Else
+               AddTextOptionST("OutfitContext_Toggle", "$SkyOutSys_OContext_ToggleOn", "", iContextFlags)
+            EndIf
+            AddTextOptionST("OutfitContext_Edit",   "$SkyOutSys_OContext_Edit",   "", iContextFlags)
             AddTextOptionST("OutfitContext_Delete", "$SkyOutSys_OContext_Delete", "", iContextFlags)
-            ;
-            ; TODO: context menu items, initially hidden
-            ;
          ;/EndBlock/;
       EndFunction
       State OutfitBrowser_Prev
@@ -229,20 +253,34 @@ EndFunction
             ;
          EndEvent
       EndState
+      State OutfitContext_Toggle
+         Event OnSelectST()
+            If _sSelectedOutfit == _sOutfitShowingContextMenu
+               SkyrimOutfitSystemNativeFuncs.SetSelectedOutfit("")
+            Else
+               SkyrimOutfitSystemNativeFuncs.SetSelectedOutfit(_sOutfitShowingContextMenu)
+            EndIf
+            RefreshCache()
+            ForcePageReset()
+         EndEvent
+      EndState
       State OutfitContext_Edit
          Event OnSelectST()
-            _sEditingOutfit = _sOutfitShowingContextMenu
-            _bEditingOutfit = True
-            SetupSlotDataForOutfit(_sEditingOutfit)
-            _iOutfitEditorBodySlotPage = 0
-            ForcePageReset()
+            StartEditingOutfit(_sOutfitShowingContextMenu)
          EndEvent
       EndState
       State OutfitContext_Delete
          Event OnSelectST()
-            ;
-            ; TODO
-            ;
+            If !_sOutfitShowingContextMenu
+               Return
+            EndIf
+            Bool bSwap = ShowMessage("$SkyOutSys_Confirm_Delete_Text{" + _sOutfitShowingContextMenu + "}", True, "$SkyOutSys_Confirm_Delete_Yes", "$SkyOutSys_Confirm_Delete_No")
+            If bSwap
+               SkyrimOutfitSystemNativeFuncs.DeleteOutfit(_sOutfitShowingContextMenu)
+               _sOutfitShowingContextMenu = ""
+               RefreshCache()
+               ForcePageReset()
+            EndIf
          EndEvent
       EndState
    ;/EndBlock/;
@@ -267,10 +305,25 @@ EndFunction
             ;     - a text field to filter that list by substring
             ;     - maybe a bool to filter out non-playable armor
             ;
+            ; All add functions must fail if the armor already exists 
+            ; in the item (though that shouldn't cause problems on the 
+            ; DLL side of things; we use std::set rather than vector, 
+            ; so redundant entries are impossible anyway).
+            ;
          ;/EndBlock/;
          ;/Block/; ; Right column
             SetCursorPosition(1)
             AddHeaderOption("$SkyOutSys_MCMHeader_OutfitSlots")
+            ;
+            ; The goal here:
+            ;
+            ;  - Show only the body slots that the outfit uses
+            ;
+            ;  - If a body slot is covered by multiple different armors 
+            ;    in the outfit (i.e. the user has chosen to enable the 
+            ;    use of conflicting armors), then show the slot multiple 
+            ;    times, once for each armor.
+            ;
             Int iSlotCount = _sOutfitSlotNames.Length
             If iSlotCount > 11
                Int iPageCount = iSlotCount / 9

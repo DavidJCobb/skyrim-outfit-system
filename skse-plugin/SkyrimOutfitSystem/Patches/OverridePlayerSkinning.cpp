@@ -15,7 +15,7 @@ namespace SkyrimOutfitSystem {
    namespace Patches {
       namespace OverridePlayerSkinning {
          bool _stdcall ShouldOverrideSkinning(RE::TESObjectREFR* target) {
-            if (!ArmorAddonOverrideService::GetInstance().enabled)
+            if (!ArmorAddonOverrideService::GetInstance().shouldOverride())
                return false;
             return (target == (RE::TESObjectREFR*) *g_thePlayer);
          }
@@ -103,6 +103,10 @@ namespace SkyrimOutfitSystem {
             // subroutine's caller.
             //
             class _ShieldVisitor : public RE::ExtraContainerChanges::InventoryVisitor {
+               //
+               // If the player has a shield equipped, and if we're not overriding that 
+               // shield, then we need to grab the equipped shield's worn-flags.
+               //
                private:
                   virtual BOOL Visit(RE::InventoryEntryData* data) override {
                      auto form = data->type;
@@ -171,6 +175,30 @@ namespace SkyrimOutfitSystem {
             // The process we're patching creates a WornItemVisitor, so look for that 
             // vtbl to find the call we want to wrap.
             //
+            class _ShieldVisitor : public RE::ExtraContainerChanges::InventoryVisitor {
+               //
+               // If the player has a shield equipped, and if we're not overriding that 
+               // shield, then we need to grab the equipped shield's worn-flags.
+               //
+               private:
+                  virtual BOOL Visit(RE::InventoryEntryData* data) override {
+                     auto form = data->type;
+                     if (form && form->formType == kFormType_Armor) {
+                        auto armor = (RE::TESObjectARMO*) form;
+                        if (armor->IsShield()) {
+                           result = true;
+                           return false; // halt visitor early
+                        }
+                     }
+                     return true;
+                  };
+               public:
+                  bool result = false;
+            };
+            bool _HasEquippedShield(RE::TESObjectREFR* target) {
+               
+            }
+            //
             void _stdcall Custom(RE::Actor* target, void* actorWeightModelData) {
                if (!actorWeightModelData)
                   return;
@@ -184,8 +212,22 @@ namespace SkyrimOutfitSystem {
                auto& armors = GetOverrideArmors();
                for (auto it = armors.cbegin(); it != armors.cend(); ++it) {
                   RE::TESObjectARMO* armor = *it;
-                  if (armor)
+                  if (armor) {
+                     if (armor->IsShield()) {
+                        //
+                        // We should only apply a shield's armor-addons if the player has 
+                        // a shield equipped.
+                        //
+                        auto inventory = RE::GetExtraContainerChangesData(target);
+                        if (inventory) {
+                           _ShieldVisitor visitor;
+                           CALL_MEMBER_FN(inventory, ExecuteVisitorOnWorn)(&visitor);
+                           if (visitor.result)
+                              continue;
+                        }
+                     }
                      CALL_MEMBER_FN(armor, ApplyArmorAddon)(race, toPass, isFemale);
+                  }
                }
             }
             __declspec(naked) void Outer() {

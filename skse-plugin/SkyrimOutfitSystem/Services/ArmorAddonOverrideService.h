@@ -27,7 +27,8 @@ struct Outfit {
    void load(SKSESerializationInterface* intfc, UInt32 version); // can throw ArmorAddonOverrideService::load_error
    void save(SKSESerializationInterface*) const; // can throw ArmorAddonOverrideService::save_error
 };
-static const Outfit g_noOutfit("");
+constexpr char* g_noOutfitName = "";
+static const Outfit g_noOutfit(g_noOutfitName);
 
 class ArmorAddonOverrideService {
    public:
@@ -69,6 +70,7 @@ class ArmorAddonOverrideService {
       void renameOutfit(const char* oldName, const char* newName); // throws name_conflict if the new name is already taken
       void setOutfit(const char* name);
       //
+      bool shouldOverride() const noexcept;
       void getOutfitNames(std::vector<std::string>& out);
       void setEnabled(bool) noexcept;
       //

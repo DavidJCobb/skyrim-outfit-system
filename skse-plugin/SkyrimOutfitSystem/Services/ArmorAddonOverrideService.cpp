@@ -87,6 +87,8 @@ void ArmorAddonOverrideService::addOutfit(const char* name, std::vector<RE::TESO
 }
 void ArmorAddonOverrideService::deleteOutfit(const char* name) {
    this->outfits.erase(name);
+   if (this->currentOutfit.name == name)
+      this->currentOutfit = g_noOutfit;
 }
 void ArmorAddonOverrideService::modifyOutfit(const char* name, std::vector<RE::TESObjectARMO*>& add, std::vector<RE::TESObjectARMO*>& remove, bool createIfMissing) {
    try {
@@ -121,14 +123,24 @@ void ArmorAddonOverrideService::renameOutfit(const char* oldName, const char* ne
    }
 }
 void ArmorAddonOverrideService::setOutfit(const char* name) {
+   if (name == g_noOutfitName) {
+      this->currentOutfit = g_noOutfit;
+      return;
+   }
    try {
       Outfit& target = this->getOutfit(name);
       this->currentOutfit = target;
    } catch (std::out_of_range) {
       _MESSAGE("ArmorAddonOverrideService: Tried to set non-existent outfit %s as active. Switching the system off for now.", name);
       this->currentOutfit = g_noOutfit; // no outfit
-      this->setEnabled(false);
    }
+}
+bool ArmorAddonOverrideService::shouldOverride() const noexcept {
+   if (!this->enabled)
+      return false;
+   if (this->currentOutfit.name == g_noOutfitName)
+      return false;
+   return true;
 }
 void ArmorAddonOverrideService::getOutfitNames(std::vector<std::string>& out) {
    out.clear();
