@@ -198,6 +198,7 @@ ItemList = new Microsoft.Build.Framework.ITaskItem[0];
     <None Include="scripts\SkyrimOutfitSystemNativeFuncs.psc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Miscellaneous\strings.h" />
     <ClInclude Include="Papyrus\OutfitSystem.h" />
     <ClInclude Include="Patches\Exploratory.h" />
     <ClInclude Include="Patches\OverridePlayerSkinning.h" />

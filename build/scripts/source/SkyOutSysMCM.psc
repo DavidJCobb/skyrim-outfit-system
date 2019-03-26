@@ -3,7 +3,7 @@ Scriptname SkyOutSysMCM extends SKI_ConfigBase Hidden
 Bool _bEditingOutfit = false
 
 Int      _iOutfitBrowserPage   = 0
-Int      _iOutfitNameMaxLength = 256 ; should never change at run-time; can change if the DLL is revised appropriately
+Int      _iOutfitNameMaxBytes = 256 ; should never change at run-time; can change if the DLL is revised appropriately
 String[] _sOutfitNames
 String   _sSelectedOutfit = ""
 String   _sEditingOutfit = ""
@@ -12,7 +12,8 @@ Int      _iOutfitEditorBodySlotPage = 0
 
 String[] _sOutfitSlotNames
 String[] _sOutfitSlotArmors
-Form[]   _kOutfitSlotArmors ; must be a Form array so we can resize it
+;Form[]   _kOutfitSlotArmors ; must be a Form array so we can resize it
+Armor[]  _kOutfitSlotArmors
 
 Int Function GetVersion()
 	return 0x01000000
@@ -21,7 +22,7 @@ EndFunction
 Event OnConfigInit()
 EndEvent
 Event OnConfigOpen()
-   _iOutfitNameMaxLength = SkyrimOutfitSystemNativeFuncs.GetOutfitNameMaxLength()
+   _iOutfitNameMaxBytes = SkyrimOutfitSystemNativeFuncs.GetOutfitNameMaxLength()
    ResetOutfitBrowser()
    RefreshCache()
 EndEvent
@@ -62,11 +63,22 @@ String Function BodySlotName(Int aiSlot) Global
 EndFunction
 
 Function SetupSlotDataForOutfit(String asOutfitName)
+   SkyrimOutfitSystemNativeFuncs.PrepOutfitBodySlotListing(asOutfitName)
+   Int[] iSlots = SkyrimOutfitSystemNativeFuncs.GetOutfitBodySlotListingSlotIndices()
+   _sOutfitSlotNames = Utility.CreateStringArray(iSlots.Length)
+   Int iIterator = 0
+   While iIterator < iSlots.Length
+      _sOutfitSlotNames[iIterator] = BodySlotName(iSlots[iIterator])
+      iIterator = iIterator + 1
+   EndWhile
+   _sOutfitSlotArmors = SkyrimOutfitSystemNativeFuncs.GetOutfitBodySlotListingArmorNames()
+   _kOutfitSlotArmors = SkyrimOutfitSystemNativeFuncs.GetOutfitBodySlotListingArmorForms()
+   SkyrimOutfitSystemNativeFuncs.ClearOutfitBodySlotListing()
+   ;/
    ;
    ; TODO: This process incurs a significant performance penalty; 
    ; we should move it to the DLL.
    ;
-   
    _sOutfitSlotNames  = new String[32]
    _sOutfitSlotArmors = new String[32]
    _kOutfitSlotArmors = new Form[32] ; must be a Form array so we can resize it
@@ -107,6 +119,7 @@ Function SetupSlotDataForOutfit(String asOutfitName)
    _sOutfitSlotNames  = Utility.ResizeStringArray(_sOutfitSlotNames,  iArraySize)
    _sOutfitSlotArmors = Utility.ResizeStringArray(_sOutfitSlotArmors, iArraySize)
    _kOutfitSlotArmors = Utility.ResizeFormArray  (_kOutfitSlotArmors, iArraySize)
+   /;
 EndFunction
 
 ;/Block/; ; Default handlers
@@ -115,9 +128,6 @@ EndFunction
       If StringUtil.Substring(sState, 0, 16) == "OutfitList_Item_"
          String sOutfitName = StringUtil.Substring(sState, 16)
          _sOutfitShowingContextMenu = sOutfitName
-         ;
-         ; TODO: pop context menu for this outfit
-         ;
          ForcePageReset()
          Return
       EndIf
@@ -215,7 +225,7 @@ EndFunction
             Else
                AddHeaderOption("$SkyOutSys_MCMHeader_GeneralActions")
             EndIf
-            AddTextOptionST("OutfitContext_New", "$SkyOutSys_OContext_New", "")
+            AddInputOptionST("OutfitContext_New", "$SkyOutSys_OContext_New", "")
             ;
             Int iContextFlags = OPTION_FLAG_HIDDEN
             If _sOutfitShowingContextMenu
@@ -243,14 +253,24 @@ EndFunction
          EndEvent
       EndState
       State OutfitContext_New
-         Event OnSelectST()
-            ;
-            ; TODO
-            ;
-            ; RELEVANT CONSIDERATIONS:
-            ;
-            ;  - limit name length to GetOutfitNameMaxLength()
-            ;
+         Event OnInputOpenST()
+            SetInputDialogStartText("outfit name or blank to cancel")
+         EndEvent
+         Event OnInputAcceptST(String asTextEntry)
+            If !asTextEntry
+               Return
+            EndIf
+            If StringUtil.GetLength(asTextEntry) > _iOutfitNameMaxBytes
+               ShowMessage("$SkyOutSys_Err_OutfitNameTooLong", False, "$SkyOutSys_ErrDismiss")
+               Return
+            EndIf
+            If SkyrimOutfitSystemNativeFuncs.OutfitExists(asTextEntry)
+               ShowMessage("$SkyOutSys_Err_OutfitNameTaken", False, "$SkyOutSys_ErrDismiss")
+               Return
+            EndIf
+            SkyrimOutfitSystemNativeFuncs.CreateOutfit(asTextEntry)
+            RefreshCache()
+            StartEditingOutfit(asTextEntry)
          EndEvent
       EndState
       State OutfitContext_Toggle
@@ -342,6 +362,9 @@ EndFunction
                While iIterator < iMax
                   String sSlot  = _sOutfitSlotNames [iIterator + iOffset]
                   String sArmor = _sOutfitSlotArmors[iIterator + iOffset]
+                  If !sArmor
+                     sArmor = "$SkyOutSys_NamelessArmor"
+                  EndIf
                   AddTextOptionST("OutfitEditor_BodySlot_" + iIterator, sSlot, sArmor)
                   iIterator = iIterator + 1
                EndWhile
@@ -360,6 +383,9 @@ EndFunction
                While iIterator < iSlotCount
                   String sSlot  = _sOutfitSlotNames[iIterator]
                   String sArmor = _sOutfitSlotArmors[iIterator]
+                  If !sArmor
+                     sArmor = "$SkyOutSys_NamelessArmor"
+                  EndIf
                   AddTextOptionST("OutfitEditor_BodySlot_" + iIterator, sSlot, sArmor)
                   iIterator = iIterator + 1
                EndWhile

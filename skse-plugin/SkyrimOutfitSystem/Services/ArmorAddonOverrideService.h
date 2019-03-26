@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "Miscellaneous/strings.h"
+
 namespace RE {
    class TESObjectARMO;
 }
@@ -16,7 +18,7 @@ struct Outfit {
    //
    // NOTE: SKSE caps serialized std::strings and const char*s to 256 bytes.
    //
-   // TODO: Cap names to 256 bytes; make names const
+   // TODO: Cap names to 256 bytes
    //
    std::string name; // can't be const; prevents assigning Objects
    std::set<RE::TESObjectARMO*> armors;
@@ -38,6 +40,9 @@ class ArmorAddonOverrideService {
       //
       static constexpr UInt32 ce_outfitNameMaxLength = 256;
       //
+      struct bad_name : public std::runtime_error {
+         explicit bad_name(const std::string& what_arg) : runtime_error(what_arg) {};
+      };
       struct load_error : public std::runtime_error {
          explicit load_error(const std::string& what_arg) : runtime_error(what_arg) {};
       };
@@ -51,22 +56,21 @@ class ArmorAddonOverrideService {
    public:
       bool enabled = false;
       Outfit currentOutfit = g_noOutfit; // ideally this should be const, but unlike pointers, references suck and don't distinguish between "can't modify" and "can't reassign;" you get both or none
-      std::unordered_map<std::string, Outfit> outfits;
+      std::unordered_map<cobb::istring, Outfit> outfits;
       //
       static ArmorAddonOverrideService& GetInstance() {
          static ArmorAddonOverrideService instance;
          return instance;
       };
       //
-      // TODO: throw exception when taking any action that would create an outfit named g_noOutfit.name
-      //
       Outfit& getOutfit(const char* name); // throws std::out_of_range if not found
-      Outfit& getOrCreateOutfit(const char* name);
+      Outfit& getOrCreateOutfit(const char* name); // can throw bad_name
       //
-      void addOutfit(const char* name);
-      void addOutfit(const char* name, std::vector<RE::TESObjectARMO*> armors);
+      void addOutfit(const char* name); // can throw bad_name
+      void addOutfit(const char* name, std::vector<RE::TESObjectARMO*> armors); // can throw bad_name
+      bool hasOutfit(const char* name) const;
       void deleteOutfit(const char* name);
-      void modifyOutfit(const char* name, std::vector<RE::TESObjectARMO*>& add, std::vector<RE::TESObjectARMO*>& remove, bool createIfMissing = false);
+      void modifyOutfit(const char* name, std::vector<RE::TESObjectARMO*>& add, std::vector<RE::TESObjectARMO*>& remove, bool createIfMissing = false); // can throw bad_name if (createIfMissing)
       void renameOutfit(const char* oldName, const char* newName); // throws name_conflict if the new name is already taken
       void setOutfit(const char* name);
       //

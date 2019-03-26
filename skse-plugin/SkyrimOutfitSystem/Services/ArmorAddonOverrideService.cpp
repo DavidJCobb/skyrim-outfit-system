@@ -71,18 +71,41 @@ Outfit& ArmorAddonOverrideService::getOutfit(const char* name) {
    return this->outfits.at(name);
 }
 Outfit& ArmorAddonOverrideService::getOrCreateOutfit(const char* name) {
+   if (name == g_noOutfitName)
+      throw bad_name("You cannot create an outfit with a blank name.");
+   //
+   // TODO: Cap the outfit name length, or modify the serialization code so that there is no length limit.
+   //
    return this->outfits.emplace(name, name).first->second;
 }
 
 void ArmorAddonOverrideService::addOutfit(const char* name) {
+   if (name == g_noOutfitName)
+      throw bad_name("You cannot create an outfit with a blank name.");
+   //
+   // TODO: Cap the outfit name length, or modify the serialization code so that there is no length limit.
+   //
    this->outfits.emplace(name, name);
 }
 void ArmorAddonOverrideService::addOutfit(const char* name, std::vector<RE::TESObjectARMO*> armors) {
+   if (name == g_noOutfitName)
+      throw bad_name("You cannot create an outfit with a blank name.");
+   //
+   // TODO: Cap the outfit name length, or modify the serialization code so that there is no length limit.
+   //
    auto& created = this->outfits.emplace(name, name).first->second;
    for (auto it = armors.begin(); it != armors.end(); ++it) {
       auto armor = *it;
       if (armor)
          created.armors.insert(armor);
+   }
+}
+bool ArmorAddonOverrideService::hasOutfit(const char* name) const {
+   try {
+      this->outfits.at(name);
+      return true;
+   } catch (std::out_of_range) {
+      return false;
    }
 }
 void ArmorAddonOverrideService::deleteOutfit(const char* name) {
@@ -123,7 +146,7 @@ void ArmorAddonOverrideService::renameOutfit(const char* oldName, const char* ne
    }
 }
 void ArmorAddonOverrideService::setOutfit(const char* name) {
-   if (name == g_noOutfitName) {
+   if (strcmp(name, g_noOutfitName) == 0) {
       this->currentOutfit = g_noOutfit;
       return;
    }
@@ -147,7 +170,7 @@ void ArmorAddonOverrideService::getOutfitNames(std::vector<std::string>& out) {
    auto& list = this->outfits;
    out.reserve(list.size());
    for (auto it = list.begin(); it != list.end(); ++it)
-      out.push_back(it->first);
+      out.push_back(it->second.name);
 }
 void ArmorAddonOverrideService::setEnabled(bool flag) noexcept {
    this->enabled = flag;
