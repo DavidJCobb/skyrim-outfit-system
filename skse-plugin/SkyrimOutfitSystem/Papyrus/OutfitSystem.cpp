@@ -9,6 +9,10 @@
 
 namespace CobbPapyrus {
    namespace OutfitSystem {
+      SInt32 GetOutfitNameMaxLength(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*) {
+         return ArmorAddonOverrideService::ce_outfitNameMaxLength;
+      }
+      //
       bool ArmorConflictsWithOutfit(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, RE::TESObjectARMO* armor, BSFixedString name) {
          auto& service = ArmorAddonOverrideService::GetInstance();
          try {
@@ -76,6 +80,13 @@ namespace CobbPapyrus {
 }
 
 bool CobbPapyrus::OutfitSystem::Register(VMClassRegistry* registry) {
+   registry->RegisterFunction(new NativeFunction0<StaticFunctionTag, SInt32>(
+      "GetOutfitNameMaxLength",
+      "SkyrimOutfitSystemNativeFuncs",
+      GetOutfitNameMaxLength,
+      registry
+   ));
+   //
    registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, bool, RE::TESObjectARMO*, BSFixedString>(
       "ArmorConflictsWithOutfit",
       "SkyrimOutfitSystemNativeFuncs",

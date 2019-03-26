@@ -35,6 +35,8 @@ class ArmorAddonOverrideService {
       static constexpr UInt32 signature = 'AAOS';
       enum { kSaveVersion = 1 };
       //
+      static constexpr UInt32 ce_outfitNameMaxLength = 256;
+      //
       struct load_error : public std::runtime_error {
          explicit load_error(const std::string& what_arg) : runtime_error(what_arg) {};
       };

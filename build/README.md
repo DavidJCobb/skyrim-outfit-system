@@ -1,1 +1,0 @@
-This folder contains anything that isn't associated with the DLL -- mainly, an ESP file and scripts to define an MCM.
