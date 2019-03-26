@@ -15,6 +15,37 @@ namespace CobbPapyrus {
       SInt32 GetOutfitNameMaxLength(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*) {
          return ArmorAddonOverrideService::ce_outfitNameMaxLength;
       }
+      VMResultArray<RE::TESObjectARMO*> GetCarriedArmor(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, RE::Actor* target) {
+         VMResultArray<RE::TESObjectARMO*> result;
+         if (target == nullptr) {
+            registry->LogError("Cannot retrieve data for a None actor.", stackId);
+            return result;
+         }
+         //
+         class _Visitor : public RE::ExtraContainerChanges::InventoryVisitor {
+            //
+            // If the player has a shield equipped, and if we're not overriding that 
+            // shield, then we need to grab the equipped shield's worn-flags.
+            //
+            private:
+               virtual BOOL Visit(RE::InventoryEntryData* data) override {
+                  auto form = data->type;
+                  if (form && form->formType == kFormType_Armor)
+                     this->list.push_back((RE::TESObjectARMO*) form);
+                  return true;
+               };
+            public:
+               VMResultArray<RE::TESObjectARMO*>& list;
+               //
+               _Visitor(VMResultArray<RE::TESObjectARMO*>& l) : list(l) {};
+         };
+         auto inventory = RE::GetExtraContainerChangesData(target);
+         if (inventory) {
+            _Visitor visitor(result);
+            CALL_MEMBER_FN(inventory, ExecuteVisitor)(&visitor);
+         }
+         return result;
+      }
       VMResultArray<RE::TESObjectARMO*> GetWornItems(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, RE::Actor* target) {
          VMResultArray<RE::TESObjectARMO*> result;
          if (target == nullptr) {
@@ -192,6 +223,16 @@ namespace CobbPapyrus {
             result.push_back(it->c_str());
          return result;
       }
+      void RemoveArmorFromOutfit(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, BSFixedString name, RE::TESObjectARMO* armor) {
+         ERROR_AND_RETURN_IF(armor == nullptr, "Cannot remove a None armor from an outfit.", registry, stackId);
+         auto& service = ArmorAddonOverrideService::GetInstance();
+         try {
+            auto& outfit = service.getOutfit(name.data);
+            outfit.armors.erase(armor);
+         } catch (std::out_of_range) {
+            registry->LogWarning("The specified outfit does not exist.", stackId);
+         }
+      }
       void RemoveConflictingArmorsFrom(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, RE::TESObjectARMO* armor, BSFixedString name) {
          ERROR_AND_RETURN_IF(armor == nullptr, "A None armor can't conflict with anything in an outfit.", registry, stackId);
          auto& service = ArmorAddonOverrideService::GetInstance();
@@ -268,6 +309,12 @@ bool CobbPapyrus::OutfitSystem::Register(VMClassRegistry* registry) {
       "GetOutfitNameMaxLength",
       "SkyrimOutfitSystemNativeFuncs",
       GetOutfitNameMaxLength,
+      registry
+   ));
+   registry->RegisterFunction(new NativeFunction1<StaticFunctionTag, VMResultArray<RE::TESObjectARMO*>, RE::Actor*>(
+      "GetCarriedArmor",
+      "SkyrimOutfitSystemNativeFuncs",
+      GetCarriedArmor,
       registry
    ));
    registry->RegisterFunction(new NativeFunction1<StaticFunctionTag, VMResultArray<RE::TESObjectARMO*>, RE::Actor*>(
@@ -362,6 +409,12 @@ bool CobbPapyrus::OutfitSystem::Register(VMClassRegistry* registry) {
       "ListOutfits",
       "SkyrimOutfitSystemNativeFuncs",
       ListOutfits,
+      registry
+   ));
+   registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, void, BSFixedString, RE::TESObjectARMO*>(
+      "RemoveArmorFromOutfit",
+      "SkyrimOutfitSystemNativeFuncs",
+      RemoveArmorFromOutfit,
       registry
    ));
    registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, void, RE::TESObjectARMO*, BSFixedString>(

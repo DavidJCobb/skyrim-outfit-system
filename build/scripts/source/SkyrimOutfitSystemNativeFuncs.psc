@@ -2,6 +2,7 @@ Scriptname SkyrimOutfitSystemNativeFuncs Hidden
 
 Int Function GetOutfitNameMaxLength() Global Native
 
+Armor[] Function GetCarriedArmor (Actor akSubject) Global Native
 Armor[] Function GetWornItems    (Actor akSubject) Global Native
         Function RefreshArmorFor (Actor akSubject) Global Native
 
@@ -19,6 +20,7 @@ Armor[]  Function GetOutfitContents (String asOutfitName) Global Native
 String   Function GetSelectedOutfit () Global Native
 Bool     Function IsEnabled         () Global Native
 String[] Function ListOutfits       () Global Native
+         Function RemoveArmorFromOutfit (String asOutfitName, Armor akArmor) Global Native
          Function RemoveConflictingArmorsFrom (Armor akTest, String asOutfitName) Global Native
 Bool     Function RenameOutfit      (String asOutfitName, String asRenameTo) Global Native
 Bool     Function OutfitExists      (String asOutfitName) Global Native

@@ -112,13 +112,16 @@ namespace SkyrimOutfitSystem {
                      auto form = data->type;
                      if (form && form->formType == kFormType_Armor) {
                         auto armor = (RE::TESObjectARMO*) form;
-                        if (armor->IsShield())
+                        if (armor->IsShield()) {
                            this->mask |= armor->bipedObject.data.parts;
+                           this->hasShield = true;
+                        }
                      }
                      return true;
                   };
                public:
                   UInt32 mask = 0;
+                  bool   hasShield = false;
             };
             //
             UInt32 _stdcall OverrideWornFlags(RE::ExtraContainerChanges::Data* inventory) {
@@ -127,15 +130,22 @@ namespace SkyrimOutfitSystem {
                auto& svc    = ArmorAddonOverrideService::GetInstance();
                auto& outfit = svc.currentOutfit();
                auto& armors = outfit.armors;
-               for (auto it = armors.cbegin(); it != armors.cend(); ++it) {
-                  RE::TESObjectARMO* armor = *it;
-                  if (armor)
-                     mask |= armor->bipedObject.data.parts;
-               }
+               bool  shield = false;
                if (!outfit.hasShield()) {
                   _ShieldVisitor visitor;
                   CALL_MEMBER_FN(inventory, ExecuteVisitorOnWorn)(&visitor);
                   mask |= visitor.mask;
+                  shield = visitor.hasShield;
+               }
+               for (auto it = armors.cbegin(); it != armors.cend(); ++it) {
+                  RE::TESObjectARMO* armor = *it;
+                  if (armor) {
+                     if (armor->IsShield()) {
+                        if (!shield)
+                           continue;
+                     }
+                     mask |= armor->bipedObject.data.parts;
+                  }
                }
                //
                return mask;
@@ -186,7 +196,7 @@ namespace SkyrimOutfitSystem {
                      if (form && form->formType == kFormType_Armor) {
                         auto armor = (RE::TESObjectARMO*) form;
                         if (armor->IsShield()) {
-                           result = true;
+                           this->result = true;
                            return false; // halt visitor early
                         }
                      }
@@ -195,9 +205,6 @@ namespace SkyrimOutfitSystem {
                public:
                   bool result = false;
             };
-            bool _HasEquippedShield(RE::TESObjectREFR* target) {
-               
-            }
             //
             void _stdcall Custom(RE::Actor* target, void* actorWeightModelData) {
                if (!actorWeightModelData)
@@ -222,8 +229,10 @@ namespace SkyrimOutfitSystem {
                         if (inventory) {
                            _ShieldVisitor visitor;
                            CALL_MEMBER_FN(inventory, ExecuteVisitorOnWorn)(&visitor);
-                           if (visitor.result)
+                           if (!visitor.result)
                               continue;
+                        } else {
+                           _MESSAGE("OverridePlayerSkinning: Outfit has a shield; unable to check whether the player has a shield equipped.");
                         }
                      }
                      CALL_MEMBER_FN(armor, ApplyArmorAddon)(race, toPass, isFemale);

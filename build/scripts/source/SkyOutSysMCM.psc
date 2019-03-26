@@ -120,10 +120,14 @@ EndFunction
       EndIf
       If StringUtil.Substring(sState, 0, 22) == "OutfitEditor_BodySlot_"
          Int iEntryIndex = StringUtil.Substring(sState, 22) as Int
-         ;
-         ; TODO: Take action on _kOutfitSlotArmors[iEntryIndex], i.e. 
-         ; offer to remove it from the outfit
-         ;
+         String sArmorName = _sOutfitSlotArmors[iEntryIndex]
+         Armor  kArmorForm = _kOutfitSlotArmors[iEntryIndex]
+         Bool bDelete = ShowMessage("$SkyOutSys_Confirm_RemoveArmor_Text{" + sArmorName + "}", True, "$SkyOutSys_Confirm_RemoveArmor_Yes", "$SkyOutSys_Confirm_RemoveArmor_No")
+         If bDelete
+            SkyrimOutfitSystemNativeFuncs.RemoveArmorFromOutfit(_sEditingOutfit, kArmorForm)
+            SetupSlotDataForOutfit(_sEditingOutfit)
+            ForcePageReset()
+         EndIf
          Return
       EndIf
    EndEvent
@@ -300,9 +304,10 @@ EndFunction
          ;/Block/; ; Left column
             SetCursorPosition(0)
             AddHeaderOption ("$SkyOutSys_MCMHeader_OutfitEditor{" + _sEditingOutfit + "}")
-            AddTextOptionST ("OutfitEditor_Back",        "$SkyOutSys_OEdit_Back", "")
-            AddInputOptionST("OutfitEditor_Rename",      "$SkyOutSys_OEdit_Rename", "")
-            AddMenuOptionST ("OutfitEditor_AddFromWorn", "$SkyOutSys_OEdit_AddFromWorn", "")
+            AddTextOptionST ("OutfitEditor_Back",           "$SkyOutSys_OEdit_Back", "")
+            AddInputOptionST("OutfitEditor_Rename",         "$SkyOutSys_OEdit_Rename", "")
+            AddMenuOptionST ("OutfitEditor_AddFromCarried", "$SkyOutSys_OEdit_AddFromCarried", "")
+            AddMenuOptionST ("OutfitEditor_AddFromWorn",    "$SkyOutSys_OEdit_AddFromWorn", "")
             ;
             ; TODO:
             ;
@@ -452,6 +457,46 @@ EndFunction
             EndIf
          EndEvent
       EndState
+      State OutfitEditor_AddFromCarried
+         Event OnMenuOpenST()
+            _kOutfitEditor_AddCandidates = SkyrimOutfitSystemNativeFuncs.GetCarriedArmor(Game.GetPlayer())
+            Int iCount = _kOutfitEditor_AddCandidates.Length
+            _sOutfitEditor_AddCandidates = Utility.CreateStringArray(iCount)
+            Int iIterator = 0
+            While iIterator < iCount
+               Armor  kCurrent = _kOutfitEditor_AddCandidates[iIterator]
+               String sCurrent = ""
+               If kCurrent
+                  sCurrent = kCurrent.GetName()
+               EndIf
+               If !sCurrent
+                  sCurrent = "$SkyOutSys_NamelessArmor"
+               EndIf
+               _sOutfitEditor_AddCandidates[iIterator] = sCurrent
+               iIterator = iIterator + 1
+            EndWhile
+            ;
+            String[] sMenu = PrependStringToArray(_sOutfitEditor_AddCandidates, "$SkyOutSys_OEdit_AddCancel")
+            ;
+            SetMenuDialogOptions(sMenu)
+            SetMenuDialogStartIndex(0)
+            SetMenuDialogDefaultIndex(0)
+         EndEvent
+         Event OnMenuAcceptST(Int aiIndex)
+            aiIndex = aiIndex - 1 ; first menu item is a "cancel" option
+            If aiIndex < 0 ; user canceled
+               _sOutfitEditor_AddCandidates = new String[1]
+               _kOutfitEditor_AddCandidates = new Armor[1]
+               Return
+            EndIf
+            Armor kCurrent = _kOutfitEditor_AddCandidates[aiIndex]
+            _sOutfitEditor_AddCandidates = new String[1]
+            _kOutfitEditor_AddCandidates = new Armor[1]
+            If kCurrent
+               AddArmorToOutfit(kCurrent)
+            EndIf
+         EndEvent
+      EndState
       State OutfitEditor_AddFromWorn
          Event OnMenuOpenST()
             _kOutfitEditor_AddCandidates = SkyrimOutfitSystemNativeFuncs.GetWornItems(Game.GetPlayer())
@@ -491,7 +536,6 @@ EndFunction
                AddArmorToOutfit(kCurrent)
             EndIf
          EndEvent
-         
       EndState
    ;/EndBlock/;
 ;/EndBlock/;
