@@ -6,6 +6,11 @@ Armor[] Function GetCarriedArmor (Actor akSubject) Global Native
 Armor[] Function GetWornItems    (Actor akSubject) Global Native
         Function RefreshArmorFor (Actor akSubject) Global Native
 
+         Function PrepArmorSearch           (String asNameFilter = "", Bool abMustBePlayable = True) Global Native
+Armor[]  Function GetArmorSearchResultForms () Global Native
+String[] Function GetArmorSearchResultNames () Global Native
+         FUnction ClearArmorSearch          () Global Native
+
          Function PrepOutfitBodySlotListing           (String asOutfitName) Global Native
 Armor[]  Function GetOutfitBodySlotListingArmorForms  () Global Native
 String[] Function GetOutfitBodySlotListingArmorNames  () Global Native

@@ -17,6 +17,11 @@ Armor[]  _kOutfitContents
 String[] _sOutfitEditor_AddCandidates
 Armor[]  _kOutfitEditor_AddCandidates
 
+String[] _sOutfitEditor_AddFromListCandidates
+Armor[]  _kOutfitEditor_AddFromListCandidates
+String   _sOutfitEditor_AddFromList_Filter   = ""
+Bool     _bOutfitEditor_AddFromList_Playable = True
+
 Int Function GetVersion()
 	return 0x01000000
 EndFunction
@@ -67,6 +72,11 @@ Function ResetOutfitEditor()
    _kOutfitContents   = new Armor[1]
    _sOutfitEditor_AddCandidates = new String[1]
    _kOutfitEditor_AddCandidates = new Armor[1]
+   ;
+   _sOutfitEditor_AddFromListCandidates = new String[1]
+   _kOutfitEditor_AddFromListCandidates = new Armor[1]
+   _sOutfitEditor_AddFromList_Filter   = ""
+   _bOutfitEditor_AddFromList_Playable = True
 EndFunction
 
 ;/Block/; ; Helpers
@@ -131,13 +141,24 @@ EndFunction
          Return
       EndIf
    EndEvent
+   Event OnHighlightST()
+      String sState = GetState()
+      If StringUtil.Substring(sState, 0, 16) == "OutfitList_Item_"
+         SetInfoText("$SkyOutSys_MCMInfoText_Outfit")
+         Return
+      EndIf
+      If StringUtil.Substring(sState, 0, 22) == "OutfitEditor_BodySlot_"
+         SetInfoText("$SkyOutSys_MCMInfoText_BodySlot")
+         Return
+      EndIf
+   EndEvent
 ;/EndBlock/;
 
 ;/Block/; ; Options
    Function ShowOptions()
       AddToggleOptionST("OPT_Enabled", "$Enabled", SkyrimOutfitSystemNativeFuncs.IsEnabled())
    EndFunction
-   
+   ;
    State OPT_Enabled
       Event OnSelectST()
          Bool bToggle = !SkyrimOutfitSystemNativeFuncs.IsEnabled()
@@ -331,6 +352,9 @@ EndFunction
                StopEditingOutfit()
             EndIf
          EndEvent
+         Event OnHighlightST()
+            SetInfoText("$SkyOutSys_MCMInfoText_DeleteOutfit{" + _sOutfitShowingContextMenu + "}")
+         EndEvent
       EndState
    ;/EndBlock/;
    ;/Block/; ; Outfit editor
@@ -343,6 +367,11 @@ EndFunction
             AddMenuOptionST ("OutfitEditor_AddFromCarried", "$SkyOutSys_OEdit_AddFromCarried", "")
             AddMenuOptionST ("OutfitEditor_AddFromWorn",    "$SkyOutSys_OEdit_AddFromWorn", "")
             AddInputOptionST("OutfitEditor_AddByID",        "$SkyOutSys_OEdit_AddByID", "")
+            AddEmptyOption()
+            AddHeaderOption  ("$SkyOutSys_OEdit_AddFromList_Header")
+            AddMenuOptionST  ("OutfitEditor_AddFromList_Menu",     "$SkyOutSys_OEdit_AddFromList_Search", "")
+            AddInputOptionST ("OutfitEditor_AddFromList_Filter",   "$SkyOutSys_OEdit_AddFromList_Filter_Name", _sOutfitEditor_AddFromList_Filter)
+            AddToggleOptionST("OutfitEditor_AddFromList_Playable", "$SkyOutSys_OEdit_AddFromList_Filter_Playable", _bOutfitEditor_AddFromList_Playable)
             ;
             ; TODO:
             ;
@@ -461,6 +490,9 @@ EndFunction
             StopEditingOutfit()
             ForcePageReset()
          EndEvent
+         Event OnHighlightST()
+            SetInfoText("$SkyOutSys_MCMInfoText_BackToOutfitList")
+         EndEvent
       EndState
       State OutfitEditor_AddFromCarried
          Event OnMenuOpenST()
@@ -500,6 +532,9 @@ EndFunction
             If kCurrent
                AddArmorToOutfit(kCurrent)
             EndIf
+         EndEvent
+         Event OnHighlightST()
+            SetInfoText("$SkyOutSys_MCMInfoText_AddToOutfitFromCarried")
          EndEvent
       EndState
       State OutfitEditor_AddFromWorn
@@ -541,6 +576,9 @@ EndFunction
                AddArmorToOutfit(kCurrent)
             EndIf
          EndEvent
+         Event OnHighlightST()
+            SetInfoText("$SkyOutSys_MCMInfoText_AddToOutfitFromWorn")
+         EndEvent
       EndState
       State OutfitEditor_AddByID
          Event OnInputOpenST()
@@ -573,6 +611,57 @@ EndFunction
                AddArmorToOutfit(kArmor)
             EndIf
          EndEvent
+         Event OnHighlightST()
+            SetInfoText("$SkyOutSys_MCMInfoText_AddToOutfitByID")
+         EndEvent
       EndState
+      ;
+      ;/Block/; ; Add-from-list
+         Function UpdateArmorSearch()
+            SkyrimOutfitSystemNativeFuncs.PrepArmorSearch(_sOutfitEditor_AddFromList_Filter, _bOutfitEditor_AddFromList_Playable)
+            _sOutfitEditor_AddFromListCandidates = SkyrimOutfitSystemNativeFuncs.GetArmorSearchResultNames()
+            _kOutfitEditor_AddFromListCandidates = SkyrimOutfitSystemNativeFuncs.GetArmorSearchResultForms()
+            SkyrimOutfitSystemNativeFuncs.ClearArmorSearch()
+         EndFunction
+         ;
+         State OutfitEditor_AddFromList_Menu
+            Event OnMenuOpenST()
+               UpdateArmorSearch()
+               String[] sMenu = PrependStringToArray(_sOutfitEditor_AddFromListCandidates, "$SkyOutSys_OEdit_AddCancel")
+               ;
+               SetMenuDialogOptions(sMenu)
+               SetMenuDialogStartIndex(0)
+               SetMenuDialogDefaultIndex(0)
+            EndEvent
+            Event OnMenuAcceptST(Int aiIndex)
+               aiIndex = aiIndex - 1 ; first menu item is a "cancel" option
+               If aiIndex < 0 ; user canceled
+                  Return
+               EndIf
+               Armor kCurrent = _kOutfitEditor_AddFromListCandidates[aiIndex]
+               If kCurrent
+                  AddArmorToOutfit(kCurrent)
+               EndIf
+            EndEvent
+         EndState
+         State OutfitEditor_AddFromList_Filter
+            Event OnInputOpenST()
+               SetInputDialogStartText(_sOutfitEditor_AddFromList_Filter)
+            EndEvent
+            Event OnInputAcceptST(String asTextEntry)
+               If asTextEntry == _sOutfitEditor_AddFromList_Filter
+                  Return
+               EndIf
+               _sOutfitEditor_AddFromList_Filter = asTextEntry
+               SetInputOptionValueST(asTextEntry)
+            EndEvent
+         EndState
+         State OutfitEditor_AddFromList_Playable
+            Event OnSelectST()
+               _bOutfitEditor_AddFromList_Playable = !_bOutfitEditor_AddFromList_Playable
+               SetToggleOptionValueST(_bOutfitEditor_AddFromList_Playable)
+            EndEvent
+         EndState
+      ;/EndBlock/;
    ;/EndBlock/;
 ;/EndBlock/;

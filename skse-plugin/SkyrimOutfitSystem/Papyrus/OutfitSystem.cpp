@@ -6,9 +6,12 @@
 
 #include "skse/GameRTTI.h"
 
+#include "ReverseEngineered/Systems/GameData.h"
 #include "ReverseEngineered/Forms/BaseForms/TESObjectARMO.h"
 #include "ReverseEngineered/Forms/Actor.h"
 #include "Services/ArmorAddonOverrideService.h"
+
+#include <algorithm>
 
 namespace CobbPapyrus {
    namespace OutfitSystem {
@@ -81,11 +84,86 @@ namespace CobbPapyrus {
          ERROR_AND_RETURN_IF(target == nullptr, "Cannot refresh armor on a None actor.", registry, stackId);
          auto pm = target->processManager;
          if (pm) {
+            //
+            // "SetEquipFlag" tells the process manager that the actor's 
+            // equipment has changed, and that their ArmorAddons should 
+            // be updated. If you need to find it in Skyrim Special, you 
+            // should see a call near the start of EquipManager's func-
+            // tion to equip an item.
+            //
             CALL_MEMBER_FN(pm, SetEquipFlag)(true);
             CALL_MEMBER_FN(pm, UpdateEquipment)(target);
          }
       }
       //
+      namespace ArmorFormSearchUtils {
+         static struct {
+            std::vector<std::string>    names;
+            std::vector<TESObjectARMO*> armors;
+            //
+            void setup(std::string nameFilter, bool mustBePlayable) {
+               auto  data = RE::TESDataHandler::GetSingleton();
+               auto& list = data->armors;
+               auto  size = list.count;
+               this->names.reserve(size);
+               this->armors.reserve(size);
+               for (UInt32 i = 0; i < size; i++) {
+                  auto armor = list[i];
+                  if (armor && armor->formType == kFormType_Armor) {
+                     if (armor->templateArmor) // filter out predefined enchanted variants, to declutter the list
+                        continue;
+                     if (mustBePlayable && !!(armor->flags & 4))
+                        continue;
+                     std::string armorName;
+                     {  // get name
+                        TESFullName* tfn = DYNAMIC_CAST(armor, TESObjectARMO, TESFullName);
+                        if (tfn)
+                           armorName = tfn->name.data;
+                     }
+                     if (armorName.empty()) // skip nameless armor
+                        continue;
+                     if (!nameFilter.empty()) {
+                        auto it = std::search(
+                           armorName.begin(),  armorName.end(),
+                           nameFilter.begin(), nameFilter.end(),
+                           [](char a, char b) { return toupper(a) == toupper(b); }
+                        );
+                        if (it == armorName.end())
+                           continue;
+                     }
+                     this->armors.push_back(armor);
+                     this->names.push_back(armorName.c_str());
+                  }
+               }
+            }
+            void clear() {
+               this->names.clear();
+               this->armors.clear();
+            }
+         } data;
+         //
+         //
+         void Prep(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, BSFixedString filter, bool mustBePlayable) {
+            data.setup(filter.data, mustBePlayable);
+         }
+         VMResultArray<TESObjectARMO*> GetForms(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*) {
+            VMResultArray<TESObjectARMO*> result;
+            auto& list = data.armors;
+            for (auto it = list.begin(); it != list.end(); it++)
+               result.push_back(*it);
+            return result;
+         }
+         VMResultArray<BSFixedString> GetNames(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*) {
+            VMResultArray<BSFixedString> result;
+            auto& list = data.names;
+            for (auto it = list.begin(); it != list.end(); it++)
+               result.push_back(it->c_str());
+            return result;
+         }
+         void Clear(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*) {
+            data.clear();
+         }
+      }
       namespace BodySlotListing {
          enum {
             kBodySlotMin = 30,
@@ -359,6 +437,32 @@ bool CobbPapyrus::OutfitSystem::Register(VMClassRegistry* registry) {
       registry
    ));
    //
+   {  // armor form search utils
+      registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, void, BSFixedString, bool>(
+         "PrepArmorSearch",
+         "SkyrimOutfitSystemNativeFuncs",
+         ArmorFormSearchUtils::Prep,
+         registry
+      ));
+      registry->RegisterFunction(new NativeFunction0<StaticFunctionTag, VMResultArray<TESObjectARMO*>>(
+         "GetArmorSearchResultForms",
+         "SkyrimOutfitSystemNativeFuncs",
+         ArmorFormSearchUtils::GetForms,
+         registry
+      ));
+      registry->RegisterFunction(new NativeFunction0<StaticFunctionTag, VMResultArray<BSFixedString>>(
+         "GetArmorSearchResultNames",
+         "SkyrimOutfitSystemNativeFuncs",
+         ArmorFormSearchUtils::GetNames,
+         registry
+      ));
+      registry->RegisterFunction(new NativeFunction0<StaticFunctionTag, void>(
+         "ClearArmorSearch",
+         "SkyrimOutfitSystemNativeFuncs",
+         ArmorFormSearchUtils::Clear,
+         registry
+      ));
+   }
    {  // body slot data
       registry->RegisterFunction(new NativeFunction1<StaticFunctionTag, void, BSFixedString>(
          "PrepOutfitBodySlotListing",
