@@ -22,11 +22,26 @@ Armor[]  _kOutfitEditor_AddFromListCandidates
 String   _sOutfitEditor_AddFromList_Filter   = ""
 Bool     _bOutfitEditor_AddFromList_Playable = True
 
+String[] Property pkQuickslotOutfits Auto
+
+Int Function GetModVersion() Global ; static method; therefore, safely callable by outside parties even before/during OnInit
+	Return 0x01000000
+EndFunction
 Int Function GetVersion()
-	return 0x01000000
+	Return GetModVersion()
 EndFunction
 
+SkyOutSysQuickslotManager Function GetQuickslotManager() Global
+   Return Quest.GetQuest("SkyrimOutfitSystemQuickslotManager") as SkyOutSysQuickslotManager
+EndFunction
+
+Event OnGameReload()
+	Parent.OnGameReload()
+	;
+	GetQuickslotManager().UpdateAllSlots()
+EndEvent
 Event OnConfigInit()
+   pkQuickslotOutfits = new String[4]
 EndEvent
 Event OnConfigOpen()
    _iOutfitNameMaxBytes = SkyrimOutfitSystemNativeFuncs.GetOutfitNameMaxLength()
@@ -141,8 +156,38 @@ EndFunction
          Return
       EndIf
    EndEvent
+   Event OnMenuOpenST()
+      String sState = GetState()
+      If StringUtil.Substring(sState, 0, 18) == "OPT_QuickslotEntry"
+         Int iQuickslotIndex = StringUtil.Substring(sState, 18) as Int
+         String[] sMenu = PrependStringToArray(_sOutfitNames, "$SkyOutSys_QuickslotEdit_Cancel")
+         SetMenuDialogOptions(sMenu)
+         SetMenuDialogStartIndex(0)
+         SetMenuDialogDefaultIndex(0)
+         Return
+      EndIf
+   EndEvent
+   Event OnMenuAcceptST(Int aiIndex)
+      String sState = GetState()
+      If StringUtil.Substring(sState, 0, 18) == "OPT_QuickslotEntry"
+         aiIndex = aiIndex - 1
+         If aiIndex < 0 ; user canceled
+            Return
+         EndIf
+         Int iQuickslotIndex = StringUtil.Substring(sState, 18) as Int
+         SkyOutSysQuickslotManager kQM = GetQuickslotManager()
+         String sOutfitName = _sOutfitNames[aiIndex]
+         kQM.SetQuickslot(iQuickslotIndex, sOutfitName)
+         SetMenuOptionValueST(kQM.GetQuickslot(iQuickslotIndex))
+         Return
+      EndIf
+   EndEvent
    Event OnHighlightST()
       String sState = GetState()
+      If StringUtil.Substring(sState, 0, 18) == "OPT_QuickslotEntry"
+         SetInfoText("$SkyOutSys_Desc_Quickslot")
+         Return
+      EndIf
       If StringUtil.Substring(sState, 0, 16) == "OutfitList_Item_"
          SetInfoText("$SkyOutSys_MCMInfoText_Outfit")
          Return
@@ -152,11 +197,39 @@ EndFunction
          Return
       EndIf
    EndEvent
+   Event OnDefaultST()
+      String sState = GetState()
+      If StringUtil.Substring(sState, 0, 18) == "OPT_QuickslotEntry"
+         Int iQuickslotIndex = StringUtil.Substring(sState, 18) as Int
+         SkyOutSysQuickslotManager kQM = GetQuickslotManager()
+         Bool bDelete = ShowMessage("$SkyOutSys_Confirm_UnsetQuickslot_Text{" + _sOutfitShowingContextMenu + "}", True, "$SkyOutSys_Confirm_UnsetQuickslot_Yes", "$SkyOutSys_Confirm_UnsetQuickslot_No")
+         If bDelete
+            kQM.SetQuickslot(iQuickslotIndex, "")
+            SetMenuOptionValueST("")
+         EndIf
+         Return
+      EndIf
+   EndEvent
 ;/EndBlock/;
 
 ;/Block/; ; Options
    Function ShowOptions()
+      SetCursorFillMode(TOP_TO_BOTTOM)
       AddToggleOptionST("OPT_Enabled", "$Enabled", SkyrimOutfitSystemNativeFuncs.IsEnabled())
+      AddEmptyOption()
+      ;
+      ; Quickslots:
+      ;
+      SkyOutSysQuickslotManager kQM = GetQuickslotManager()
+      AddHeaderOption("$SkyOutSys_MCMHeader_Quickslots")
+      Int iCount = kQM.GetQuickslotCount()
+      AddToggleOptionST("OPT_QuickslotsEnabled", "$SkyOutSys_Text_EnableQuickslots", kQM.GetEnabled())
+      Int iIterator = 0
+      While iIterator < iCount
+         String sQuickslotted = kQM.GetQuickslot(iIterator)
+         AddMenuOptionST("OPT_QuickslotEntry" + iIterator, "$SkyOutSys_Text_Quickslot{" + (iIterator + 1) + "}", sQuickslotted)
+         iIterator = iIterator + 1
+      EndWhile
    EndFunction
    ;
    State OPT_Enabled
@@ -164,6 +237,16 @@ EndFunction
          Bool bToggle = !SkyrimOutfitSystemNativeFuncs.IsEnabled()
          SkyrimOutfitSystemNativeFuncs.SetEnabled(bToggle)
          SetToggleOptionValueST(bToggle)
+      EndEvent
+   EndState
+   State OPT_QuickslotsEnabled
+      Event OnSelectST()
+         SkyOutSysQuickslotManager kQM = GetQuickslotManager()
+         kQM.SetEnabled(!kQM.GetEnabled())
+         SetToggleOptionValueST(kQM.GetEnabled())
+      EndEvent
+      Event OnHighlightST()
+         SetInfoText("$SkyOutSys_Desc_EnableQuickslots")
       EndEvent
    EndState
 ;/EndBlock/;
@@ -358,10 +441,19 @@ EndFunction
             EndIf
             Bool bSuccess = SkyrimOutfitSystemNativeFuncs.RenameOutfit(_sOutfitShowingContextMenu, asTextEntry)
             If bSuccess
+               SkyOutSysQuickslotManager kQM = GetQuickslotManager()
+               Int iIndex = kQM.IndexOfQuickslot(_sOutfitShowingContextMenu)
+               If iIndex >= 0
+                  kQM.SetQuickslot(iIndex, asTextEntry)
+               EndIf
+               ;
                _sOutfitShowingContextMenu = asTextEntry
                RefreshCache()
                ForcePageReset()
             EndIf
+         EndEvent
+         Event OnHighlightST()
+            SetInfoText("$SkyOutSys_MCMInfoText_RenameOutfit{" + _sOutfitShowingContextMenu + "}")
          EndEvent
       EndState
       State OutfitContext_Delete
@@ -372,6 +464,13 @@ EndFunction
             Bool bDelete = ShowMessage("$SkyOutSys_Confirm_Delete_Text{" + _sOutfitShowingContextMenu + "}", True, "$SkyOutSys_Confirm_Delete_Yes", "$SkyOutSys_Confirm_Delete_No")
             If bDelete
                SkyrimOutfitSystemNativeFuncs.DeleteOutfit(_sOutfitShowingContextMenu)
+               ;
+               SkyOutSysQuickslotManager kQM = GetQuickslotManager()
+               Int iIndex = kQM.IndexOfQuickslot(_sOutfitShowingContextMenu)
+               If iIndex >= 0
+                  kQM.SetQuickslot(iIndex, "")
+               EndIf
+               ;
                RefreshCache()
                StopEditingOutfit()
             EndIf

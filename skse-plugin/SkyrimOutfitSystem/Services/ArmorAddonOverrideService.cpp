@@ -193,7 +193,22 @@ void ArmorAddonOverrideService::load(SKSESerializationInterface* intfc, UInt32 v
    //
    std::string selectedOutfitName;
    _assertWrite(ReadData(intfc, &this->enabled),      "Failed to read the enable state.");
-   _assertWrite(ReadData(intfc, &selectedOutfitName), "Failed to read the selected outfit name.");
+   {  // current outfit name
+      //
+      // we can't call WriteData directly on this->currentOutfitName because it's 
+      // a cobb::istring, and SKSE only templated WriteData for std::string in 
+      // specific; other basic_string classes break it.
+      //
+      UInt32 size = 0;
+      char buf[257];
+      memset(buf, '\0', sizeof(buf));
+      _assertRead(ReadData(intfc, &size), "Failed to read the selected outfit name.");
+      _assertRead(size < 257, "The selected outfit name is too long.");
+      if (size) {
+         _assertRead(intfc->ReadRecordData(buf, size), "Failed to read the selected outfit name.");
+      }
+      selectedOutfitName = buf;
+   }
    UInt32 size;
    _assertRead(ReadData(intfc, &size), "Failed to read the outfit count.");
    for (UInt32 i = 0; i < size; i++) {
@@ -208,11 +223,21 @@ void ArmorAddonOverrideService::save(SKSESerializationInterface* intfc) {
    using namespace Serialization;
    //
    _assertWrite(WriteData(intfc, &this->enabled), "Failed to write the enable state.");
-   _assertWrite(WriteData(intfc, &this->currentOutfitName), "Failed to write the selected outfit name.");
+   {  // current outfit name
+      //
+      // we can't call WriteData directly on this->currentOutfitName because it's 
+      // a cobb::istring, and SKSE only templated WriteData for std::string in 
+      // specific; other basic_string classes break it.
+      //
+      UInt32 size      = this->currentOutfitName.size();
+      const char* name = this->currentOutfitName.c_str();
+      _assertWrite(WriteData(intfc, &size), "Failed to write the selected outfit name.");
+      _assertWrite(intfc->WriteRecordData(name, size), "Failed to write the selected outfit name.");
+   }
    UInt32 size = this->outfits.size();
    _assertWrite(WriteData(intfc, &size), "Failed to write the outfit count.");
    for (auto it = this->outfits.cbegin(); it != this->outfits.cend(); ++it) {
-      auto& name = it->first;
+      auto& name = it->second.name;
       _assertWrite(WriteData(intfc, &name), "Failed to write an outfit's name.");
       //
       auto& outfit = it->second;

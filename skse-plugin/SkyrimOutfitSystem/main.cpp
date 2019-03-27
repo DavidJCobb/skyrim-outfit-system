@@ -144,7 +144,7 @@ void Callback_Messaging_SKSE(SKSEMessagingInterface::Message* message) {
    }
 };
 void Callback_Serialization_Save(SKSESerializationInterface* intfc) {
-   _MESSAGE("Saving...");
+   _MESSAGE("Writing savedata...");
    //
    if (intfc->OpenRecord(ArmorAddonOverrideService::signature, ArmorAddonOverrideService::kSaveVersion)) {
       try {
@@ -160,7 +160,7 @@ void Callback_Serialization_Save(SKSESerializationInterface* intfc) {
    _MESSAGE("Saving done!");
 }
 void Callback_Serialization_Load(SKSESerializationInterface* intfc) {
-   _MESSAGE("Loading...");
+   _MESSAGE("Loading savedata...");
    //
    UInt32 type;    // This IS correct. A UInt32 and a four-character ASCII string have the same length (and can be read interchangeably, it seems).
    UInt32 version;
