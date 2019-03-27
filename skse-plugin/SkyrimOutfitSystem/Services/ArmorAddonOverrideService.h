@@ -62,7 +62,7 @@ class ArmorAddonOverrideService {
          }
       };
    public:
-      bool enabled = false;
+      bool enabled = true;
       cobb::istring currentOutfitName = g_noOutfitName;
       std::unordered_map<cobb::istring, Outfit> outfits;
       //

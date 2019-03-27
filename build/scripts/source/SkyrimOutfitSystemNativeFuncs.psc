@@ -12,6 +12,9 @@ String[] Function GetOutfitBodySlotListingArmorNames  () Global Native
 Int[]    Function GetOutfitBodySlotListingSlotIndices () Global Native
          Function ClearOutfitBodySlotListing          () Global Native
 
+Int    Function HexToInt32 (String asHex) Global Native
+String Function ToHex      (Int aiValue, Int aiDigits) Global Native
+
          Function AddArmorToOutfit  (String asOutfitName, Armor akArmor) Global Native
 Bool     Function ArmorConflictsWithOutfit (Armor akTest, String asOutfitName) Global Native
          Function CreateOutfit      (String asOutfitName) Global Native

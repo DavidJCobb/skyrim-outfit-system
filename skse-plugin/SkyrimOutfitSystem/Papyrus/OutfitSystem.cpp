@@ -154,6 +154,35 @@ namespace CobbPapyrus {
             return result;
          }
       }
+      namespace Utility {
+         UInt32 HexToInt32(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, BSFixedString str) {
+            const char* s = str.data;
+            char* discard;
+            return strtoul(s, &discard, 16);
+         }
+         BSFixedString ToHex(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, UInt32 value, SInt32 length) {
+            if (length < 1) {
+               registry->LogWarning("Cannot format a hexadecimal valueinteger to a negative number of digits. Defaulting to eight.", stackId);
+               length = 8;
+            } else if (length > 8) {
+               registry->LogWarning("Cannot format a hexadecimal integer longer than eight digits.", stackId);
+               length = 8;
+            }
+            char hex[9];
+            memset(hex, '0', sizeof(hex));
+            hex[length] = '\0';
+            while (value > 0 && length--) {
+               UInt8 digit = value % 0x10;
+               value /= 0x10;
+               if (digit < 0xA) {
+                  hex[length] = digit + '0';
+               } else {
+                  hex[length] = digit + 0x37;
+               }
+            }
+            return hex; // passes through BSFixedString constructor, which I believe caches the string, so returning local vars should be fine
+         }
+      }
       //
       void AddArmorToOutfit(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, BSFixedString name, RE::TESObjectARMO* armor) {
          ERROR_AND_RETURN_IF(armor == nullptr, "Cannot add a None armor to an outfit.", registry, stackId);
@@ -359,6 +388,20 @@ bool CobbPapyrus::OutfitSystem::Register(VMClassRegistry* registry) {
          "ClearOutfitBodySlotListing",
          "SkyrimOutfitSystemNativeFuncs",
          BodySlotListing::Clear,
+         registry
+      ));
+   }
+   {  // Utility
+      registry->RegisterFunction(new NativeFunction1<StaticFunctionTag, UInt32, BSFixedString>(
+         "HexToInt32",
+         "SkyrimOutfitSystemNativeFuncs",
+         Utility::HexToInt32,
+         registry
+      ));
+      registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, BSFixedString, UInt32, SInt32>(
+         "ToHex",
+         "SkyrimOutfitSystemNativeFuncs",
+         Utility::ToHex,
          registry
       ));
    }

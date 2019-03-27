@@ -184,7 +184,12 @@ EndFunction
                While iIterator < iMax
                   String sName = _sOutfitNames[iIterator + iOffset]
                   String sMark = " "
-                  If sName == _sOutfitShowingContextMenu
+                  If sName == _sSelectedOutfit
+                     sMark = "$SkyOutSys_OutfitBrowser_ActiveMark"
+                     If sName == _sOutfitShowingContextMenu
+                        sMark = "$SkyOutSys_OutfitBrowser_ContextActiveMark"
+                     EndIf
+                  ElseIf sName == _sOutfitShowingContextMenu
                      sMark = "$SkyOutSys_OutfitBrowser_ContextMark"
                   EndIf
                   AddTextOptionST("OutfitList_Item_" + sName, sName, sMark)
@@ -205,7 +210,12 @@ EndFunction
                While iIterator < _sOutfitNames.Length
                   String sName = _sOutfitNames[iIterator]
                   String sMark = " "
-                  If sName == _sOutfitShowingContextMenu
+                  If sName == _sSelectedOutfit
+                     sMark = "$SkyOutSys_OutfitBrowser_ActiveMark"
+                     If sName == _sOutfitShowingContextMenu
+                        sMark = "$SkyOutSys_OutfitBrowser_ContextActiveMark"
+                     EndIf
+                  ElseIf sName == _sOutfitShowingContextMenu
                      sMark = "$SkyOutSys_OutfitBrowser_ContextMark"
                   EndIf
                   AddTextOptionST("OutfitList_Item_" + sName, sName, sMark)
@@ -215,24 +225,22 @@ EndFunction
          ;/EndBlock/;
          ;/Block/; ; Right column
             SetCursorPosition(1)
-            If _sOutfitShowingContextMenu
-               AddHeaderOption("$SkyOutSys_MCMHeader_OutfitActions{" + _sOutfitShowingContextMenu + "}")
-            Else
-               AddHeaderOption("$SkyOutSys_MCMHeader_GeneralActions")
-            EndIf
+            AddHeaderOption("$SkyOutSys_MCMHeader_GeneralActions")
             AddInputOptionST("OutfitContext_New", "$SkyOutSys_OContext_New", "")
             ;
             Int iContextFlags = OPTION_FLAG_HIDDEN
             If _sOutfitShowingContextMenu
                iContextFlags = OPTION_FLAG_NONE
             EndIf
+            AddHeaderOption("$SkyOutSys_MCMHeader_OutfitActions{" + _sOutfitShowingContextMenu + "}", iContextFlags)
             If _sSelectedOutfit == _sOutfitShowingContextMenu
                AddTextOptionST("OutfitContext_Toggle", "$SkyOutSys_OContext_ToggleOff", "", iContextFlags)
             Else
                AddTextOptionST("OutfitContext_Toggle", "$SkyOutSys_OContext_ToggleOn", "", iContextFlags)
             EndIf
-            AddTextOptionST("OutfitContext_Edit",   "$SkyOutSys_OContext_Edit",   "", iContextFlags)
-            AddTextOptionST("OutfitContext_Delete", "$SkyOutSys_OContext_Delete", "", iContextFlags)
+            AddTextOptionST ("OutfitContext_Edit",   "$SkyOutSys_OContext_Edit",   "", iContextFlags)
+            AddInputOptionST("OutfitContext_Rename", "$SkyOutSys_OContext_Rename", "", iContextFlags)
+            AddTextOptionST ("OutfitContext_Delete", "$SkyOutSys_OContext_Delete", "", iContextFlags)
          ;/EndBlock/;
       EndFunction
       State OutfitBrowser_Prev
@@ -284,6 +292,33 @@ EndFunction
             StartEditingOutfit(_sOutfitShowingContextMenu)
          EndEvent
       EndState
+      State OutfitContext_Rename
+         Event OnInputOpenST()
+            SetInputDialogStartText("outfit name or blank to cancel")
+         EndEvent
+         Event OnInputAcceptST(String asTextEntry)
+            If !asTextEntry
+               Return
+            EndIf
+            If asTextEntry == _sOutfitShowingContextMenu
+               Return
+            EndIf
+            If StringUtil.GetLength(asTextEntry) > _iOutfitNameMaxBytes
+               ShowMessage("$SkyOutSys_Err_OutfitNameTooLong", False, "$SkyOutSys_ErrDismiss")
+               Return
+            EndIf
+            If SkyrimOutfitSystemNativeFuncs.OutfitExists(asTextEntry)
+               ShowMessage("$SkyOutSys_Err_OutfitNameTaken", False, "$SkyOutSys_ErrDismiss")
+               Return
+            EndIf
+            Bool bSuccess = SkyrimOutfitSystemNativeFuncs.RenameOutfit(_sOutfitShowingContextMenu, asTextEntry)
+            If bSuccess
+               _sOutfitShowingContextMenu = asTextEntry
+               RefreshCache()
+               ForcePageReset()
+            EndIf
+         EndEvent
+      EndState
       State OutfitContext_Delete
          Event OnSelectST()
             If !_sOutfitShowingContextMenu
@@ -305,13 +340,12 @@ EndFunction
             SetCursorPosition(0)
             AddHeaderOption ("$SkyOutSys_MCMHeader_OutfitEditor{" + _sEditingOutfit + "}")
             AddTextOptionST ("OutfitEditor_Back",           "$SkyOutSys_OEdit_Back", "")
-            AddInputOptionST("OutfitEditor_Rename",         "$SkyOutSys_OEdit_Rename", "")
             AddMenuOptionST ("OutfitEditor_AddFromCarried", "$SkyOutSys_OEdit_AddFromCarried", "")
             AddMenuOptionST ("OutfitEditor_AddFromWorn",    "$SkyOutSys_OEdit_AddFromWorn", "")
+            AddInputOptionST("OutfitEditor_AddByID",        "$SkyOutSys_OEdit_AddByID", "")
             ;
             ; TODO:
             ;
-            ;  - Add item by form ID
             ;  - Add item by name
             ;     - a menu of every armor form in the game
             ;        - can we filter out the ones used as "skins?"
@@ -402,9 +436,7 @@ EndFunction
                   iIterator = iIterator + 1
                EndWhile
             Else
-               ;
-               ; TODO: Empty outfit
-               ;
+               AddTextOption("$SkyOutSys_OutfitEditor_OutfitIsEmpty", "")
             EndIf
          ;/EndBlock/;
       EndFunction
@@ -428,33 +460,6 @@ EndFunction
          Event OnSelectST()
             StopEditingOutfit()
             ForcePageReset()
-         EndEvent
-      EndState
-      State OutfitEditor_Rename
-         Event OnInputOpenST()
-            SetInputDialogStartText("outfit name or blank to cancel")
-         EndEvent
-         Event OnInputAcceptST(String asTextEntry)
-            If !asTextEntry
-               Return
-            EndIf
-            If asTextEntry == _sEditingOutfit
-               Return
-            EndIf
-            If StringUtil.GetLength(asTextEntry) > _iOutfitNameMaxBytes
-               ShowMessage("$SkyOutSys_Err_OutfitNameTooLong", False, "$SkyOutSys_ErrDismiss")
-               Return
-            EndIf
-            If SkyrimOutfitSystemNativeFuncs.OutfitExists(asTextEntry)
-               ShowMessage("$SkyOutSys_Err_OutfitNameTaken", False, "$SkyOutSys_ErrDismiss")
-               Return
-            EndIf
-            Bool bSuccess = SkyrimOutfitSystemNativeFuncs.RenameOutfit(_sEditingOutfit, asTextEntry)
-            If bSuccess
-               _sEditingOutfit = asTextEntry
-               RefreshCache()
-               ForcePageReset()
-            EndIf
          EndEvent
       EndState
       State OutfitEditor_AddFromCarried
@@ -534,6 +539,38 @@ EndFunction
             _kOutfitEditor_AddCandidates = new Armor[1]
             If kCurrent
                AddArmorToOutfit(kCurrent)
+            EndIf
+         EndEvent
+      EndState
+      State OutfitEditor_AddByID
+         Event OnInputOpenST()
+            SetInputDialogStartText("0x00000000")
+         EndEvent
+         Event OnInputAcceptST(String asTextEntry)
+            If !asTextEntry
+               Return
+            EndIf
+            Int iFormID = SkyrimOutfitSystemNativeFuncs.HexToInt32(asTextEntry)
+            If !iFormID
+               Return
+            EndIf
+            Form  kForm  = Game.GetForm(iFormID)
+            Armor kArmor = Game.GetForm(iFormID) as Armor
+            If !kArmor
+               If !kForm
+                  ShowMessage("$SkyOutSys_Err_FormDoesNotExist", False, "$SkyOutSys_ErrDismiss")
+                  Return
+               EndIf
+               ShowMessage("$SkyOutSys_Err_FormIsNotArmor", False, "$SkyOutSys_ErrDismiss")
+               Return
+            EndIf
+            String sName = kArmor.GetName()
+            If !sName
+               sName = "$SkyOutSys_NamelessArmor"
+            EndIf
+            Bool bConfirm = ShowMessage("$SkyOutSys_Confirm_AddByID_Text{" + sName + "}", True, "$SkyOutSys_Confirm_AddByID_Yes", "$SkyOutSys_Confirm_AddByID_No")
+            If bConfirm
+               AddArmorToOutfit(kArmor)
             EndIf
          EndEvent
       EndState
