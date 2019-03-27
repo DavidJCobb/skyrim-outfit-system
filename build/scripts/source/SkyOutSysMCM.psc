@@ -248,6 +248,8 @@ EndFunction
             SetCursorPosition(1)
             AddHeaderOption("$SkyOutSys_MCMHeader_GeneralActions")
             AddInputOptionST("OutfitContext_New", "$SkyOutSys_OContext_New", "")
+            AddInputOptionST("OutfitContext_NewFromWorn", "$SkyOutSys_OContext_NewFromWorn", "")
+            AddEmptyOption()
             ;
             Int iContextFlags = OPTION_FLAG_HIDDEN
             If _sOutfitShowingContextMenu
@@ -293,6 +295,28 @@ EndFunction
                Return
             EndIf
             SkyrimOutfitSystemNativeFuncs.CreateOutfit(asTextEntry)
+            RefreshCache()
+            StartEditingOutfit(asTextEntry)
+         EndEvent
+      EndState
+      State OutfitContext_NewFromWorn
+         Event OnInputOpenST()
+            SetInputDialogStartText("outfit name or blank to cancel")
+         EndEvent
+         Event OnInputAcceptST(String asTextEntry)
+            If !asTextEntry
+               Return
+            EndIf
+            If StringUtil.GetLength(asTextEntry) > _iOutfitNameMaxBytes
+               ShowMessage("$SkyOutSys_Err_OutfitNameTooLong", False, "$SkyOutSys_ErrDismiss")
+               Return
+            EndIf
+            If SkyrimOutfitSystemNativeFuncs.OutfitExists(asTextEntry)
+               ShowMessage("$SkyOutSys_Err_OutfitNameTaken", False, "$SkyOutSys_ErrDismiss")
+               Return
+            EndIf
+            Armor[] kList = SkyrimOutfitSystemNativeFuncs.GetWornItems(Game.GetPlayer())
+            SkyrimOutfitSystemNativeFuncs.OverwriteOutfit(asTextEntry, kList)
             RefreshCache()
             StartEditingOutfit(asTextEntry)
          EndEvent
@@ -372,16 +396,6 @@ EndFunction
             AddMenuOptionST  ("OutfitEditor_AddFromList_Menu",     "$SkyOutSys_OEdit_AddFromList_Search", "")
             AddInputOptionST ("OutfitEditor_AddFromList_Filter",   "$SkyOutSys_OEdit_AddFromList_Filter_Name", _sOutfitEditor_AddFromList_Filter)
             AddToggleOptionST("OutfitEditor_AddFromList_Playable", "$SkyOutSys_OEdit_AddFromList_Filter_Playable", _bOutfitEditor_AddFromList_Playable)
-            ;
-            ; TODO:
-            ;
-            ;  - Add item by name
-            ;     - a menu of every armor form in the game
-            ;        - can we filter out the ones used as "skins?"
-            ;           - do skins have names? if not, we can filter those out. 
-            ;             i mean, we should filter nameless armors out anyway...
-            ;     - a text field to filter that list by substring
-            ;     - maybe a bool to filter out non-playable armor
             ;
             ; All add functions must fail if the armor already exists 
             ; in the item (though that shouldn't cause problems on the 
@@ -622,6 +636,9 @@ EndFunction
             _sOutfitEditor_AddFromListCandidates = SkyrimOutfitSystemNativeFuncs.GetArmorSearchResultNames()
             _kOutfitEditor_AddFromListCandidates = SkyrimOutfitSystemNativeFuncs.GetArmorSearchResultForms()
             SkyrimOutfitSystemNativeFuncs.ClearArmorSearch()
+            ;
+            ; TODO: If CobbAPI is installed, natural-sort the armor list.
+            ;
          EndFunction
          ;
          State OutfitEditor_AddFromList_Menu
