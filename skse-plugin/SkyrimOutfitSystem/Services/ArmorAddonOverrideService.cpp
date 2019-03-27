@@ -182,7 +182,7 @@ void ArmorAddonOverrideService::setEnabled(bool flag) noexcept {
 }
 //
 void ArmorAddonOverrideService::reset() {
-   this->enabled = false;
+   this->enabled = true;
    this->currentOutfitName = g_noOutfitName;
    this->outfits.clear();
 }
