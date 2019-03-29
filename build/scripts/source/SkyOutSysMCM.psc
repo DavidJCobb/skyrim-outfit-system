@@ -72,9 +72,7 @@ Function RefreshCache()
    _sOutfitNames    = SkyrimOutfitSystemNativeFuncs.ListOutfits()
    _sSelectedOutfit = SkyrimOutfitSystemNativeFuncs.GetSelectedOutfit()
    ;
-LogStringArrayForDebugging("Unsorted outfit names:", _sOutfitNames)
    _sOutfitNames = SkyrimOutfitSystemNativeFuncs.NaturalSort_ASCII(_sOutfitNames)
-LogStringArrayForDebugging("Sorted outfit names:", _sOutfitNames)
 EndFunction
 
 Function ResetOutfitBrowser()
@@ -638,9 +636,7 @@ EndFunction
                iIterator = iIterator + 1
             EndWhile
             ;
-LogStringArrayForDebugging("Unsorted add:", _sOutfitEditor_AddCandidates)
             _sOutfitEditor_AddCandidates = SkyrimOutfitSystemNativeFuncs.NaturalSortPairArmor_ASCII(_sOutfitEditor_AddCandidates, _kOutfitEditor_AddCandidates)
-LogStringArrayForDebugging("Sorted add:", _sOutfitEditor_AddCandidates)
             ;
             String[] sMenu = PrependStringToArray(_sOutfitEditor_AddCandidates, "$SkyOutSys_OEdit_AddCancel")
             ;
@@ -685,9 +681,7 @@ LogStringArrayForDebugging("Sorted add:", _sOutfitEditor_AddCandidates)
                iIterator = iIterator + 1
             EndWhile
             ;
-LogStringArrayForDebugging("Unsorted add:", _sOutfitEditor_AddCandidates)
             _sOutfitEditor_AddCandidates = SkyrimOutfitSystemNativeFuncs.NaturalSortPairArmor_ASCII(_sOutfitEditor_AddCandidates, _kOutfitEditor_AddCandidates)
-LogStringArrayForDebugging("Sorted add:", _sOutfitEditor_AddCandidates)
             ;
             String[] sMenu = PrependStringToArray(_sOutfitEditor_AddCandidates, "$SkyOutSys_OEdit_AddCancel")
             ;
@@ -756,9 +750,7 @@ LogStringArrayForDebugging("Sorted add:", _sOutfitEditor_AddCandidates)
             _kOutfitEditor_AddFromListCandidates = SkyrimOutfitSystemNativeFuncs.GetArmorSearchResultForms()
             SkyrimOutfitSystemNativeFuncs.ClearArmorSearch()
             ;
-LogStringArrayForDebugging("Unsorted add:", _sOutfitEditor_AddFromListCandidates)
             _sOutfitEditor_AddFromListCandidates = SkyrimOutfitSystemNativeFuncs.NaturalSortPairArmor_ASCII(_sOutfitEditor_AddFromListCandidates, _kOutfitEditor_AddFromListCandidates)
-LogStringArrayForDebugging("Sorted add:", _sOutfitEditor_AddFromListCandidates)
          EndFunction
          ;
          State OutfitEditor_AddFromList_Menu

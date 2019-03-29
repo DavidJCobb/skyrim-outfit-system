@@ -2,9 +2,6 @@
 #include <string>
 
 namespace cobb {
-   template<class T> struct is_basic_string : std::false_type {};
-   template<class Ch, class Tr, class Al> struct is_basic_string<std::basic_string<Ch, Tr, Al>> : std::true_type {};
-
    struct char_traits_insensitive : public std::char_traits<char> {
       inline static bool eq(char c1, char c2) {
          return tolower(c1) == tolower(c2);
