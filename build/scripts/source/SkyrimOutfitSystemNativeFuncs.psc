@@ -1,5 +1,20 @@
 Scriptname SkyrimOutfitSystemNativeFuncs Hidden
 
+;
+; Information on the outfit system:
+;
+;  - Outfit names are not sorted; functions to retrieve a list of outfits 
+;    will return an unsorted list. List order will remain consistent until 
+;    the list changes (i.e. the std::unordered_map's iterators invalidate).
+;
+;  - Inventory lists are unsorted but likely to remain similarly consistent.
+;
+;  - Armor search results are not intentionally sorted, but will most 
+;    likely be returned in form ID order.
+;
+;  - Body part listings are sorted by body part index.
+;
+
 Int Function GetOutfitNameMaxLength() Global Native
 
 Armor[] Function GetCarriedArmor (Actor akSubject) Global Native
@@ -9,7 +24,7 @@ Armor[] Function GetWornItems    (Actor akSubject) Global Native
          Function PrepArmorSearch           (String asNameFilter = "", Bool abMustBePlayable = True) Global Native
 Armor[]  Function GetArmorSearchResultForms () Global Native
 String[] Function GetArmorSearchResultNames () Global Native
-         FUnction ClearArmorSearch          () Global Native
+         Function ClearArmorSearch          () Global Native
 
          Function PrepOutfitBodySlotListing           (String asOutfitName) Global Native
 Armor[]  Function GetOutfitBodySlotListingArmorForms  () Global Native
@@ -17,8 +32,14 @@ String[] Function GetOutfitBodySlotListingArmorNames  () Global Native
 Int[]    Function GetOutfitBodySlotListingSlotIndices () Global Native
          Function ClearOutfitBodySlotListing          () Global Native
 
-Int    Function HexToInt32 (String asHex) Global Native
-String Function ToHex      (Int aiValue, Int aiDigits) Global Native
+;
+; String functions copied from CobbAPI:
+;
+String[] Function NaturalSort_ASCII          (String[] asStrings, Bool abDescending = False) Global Native
+String[] Function NaturalSortPairArmor_ASCII (String[] asStrings, Armor[] akForms, Bool abDescending = False) Global Native ; modifies akForms; returns sorted copy of asStrings
+;
+Int      Function HexToInt32 (String asHex) Global Native
+String   Function ToHex      (Int aiValue, Int aiDigits) Global Native
 
          Function AddArmorToOutfit  (String asOutfitName, Armor akArmor) Global Native
 Bool     Function ArmorConflictsWithOutfit (Armor akTest, String asOutfitName) Global Native

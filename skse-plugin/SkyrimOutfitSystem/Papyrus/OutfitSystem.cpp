@@ -11,6 +11,10 @@
 #include "ReverseEngineered/Forms/Actor.h"
 #include "Services/ArmorAddonOverrideService.h"
 
+#include "Miscellaneous/strings.h"
+#include "Miscellaneous/utf8string.h"
+#include "Miscellaneous/utf8naturalsort.h"
+
 #include <algorithm>
 
 namespace CobbPapyrus {
@@ -232,6 +236,81 @@ namespace CobbPapyrus {
             return result;
          }
       }
+      namespace StringSorts {
+         VMResultArray<BSFixedString> NaturalSort_ASCII(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, VMArray<BSFixedString> arr, bool descending) {
+            VMResultArray<BSFixedString> result;
+            {  // Copy input array into output array
+               UInt32 size = arr.Length();
+               result.reserve(size);
+               for (UInt32 i = 0; i < size; i++) {
+                  BSFixedString x;
+                  arr.Get(&x, i);
+                  result.push_back(x);
+               }
+            }
+            std::sort(
+               result.begin(),
+               result.end(),
+               [descending](const BSFixedString& x, const BSFixedString& y) {
+                  //cobb::lowerstring a(x.data); // TODO: lowerstring is busted and doesn't actually change case on insert
+                  //cobb::lowerstring b(y.data);
+                  std::string a(x.data);
+                  std::string b(y.data);
+                  std::transform(a.begin(), a.end(), a.begin(), [](unsigned char c) -> unsigned char { return tolower(c); });
+                  std::transform(b.begin(), b.end(), b.begin(), [](unsigned char c) -> unsigned char { return tolower(c); });
+                  if (descending)
+                     std::swap(a, b);
+                  return cobb::utf8_naturalcompare(a, b) > 0;
+               }
+            );
+            return result;
+         }
+         template<typename T> VMResultArray<BSFixedString> NaturalSortPair_ASCII(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, VMArray<BSFixedString> arr, VMArray<T> second, bool descending) {
+            UInt32 size = arr.Length();
+            if (size != second.Length()) {
+               registry->LogError("The two arrays must be the same length.", stackId);
+               //
+               VMResultArray<BSFixedString> result;
+               result.reserve(size);
+               for (UInt32 i = 0; i < size; i++) {
+                  BSFixedString x;
+                  arr.Get(&x, i);
+                  result.push_back(x);
+               }
+               return result;
+            }
+            //
+            typedef std::pair<BSFixedString, T> _pair;
+            std::vector<_pair> pairs;
+            //
+            VMResultArray<BSFixedString> result;
+            {  // Copy input array into output array
+               result.reserve(size);
+               for (UInt32 i = 0; i < size; i++) {
+                  BSFixedString x;
+                  T y;
+                  arr.Get(&x, i);
+                  second.Get(&y, i);
+                  pairs.emplace_back(x, y);
+               }
+            }
+            std::sort(
+               pairs.begin(),
+               pairs.end(),
+               [descending](const _pair& x, const _pair& y) {
+                  auto result = cobb::utf8_naturalcompare(cobb::lowerstring(x.first.data), cobb::lowerstring(y.first.data));
+                  if (descending)
+                     result = -result;
+                  return result > 0;
+               }
+            );
+            for (UInt32 i = 0; i < size; i++) {
+               result.push_back(pairs[i].first);
+               second.Set(&pairs[i].second, i);
+            }
+            return result;
+         }
+      }
       namespace Utility {
          UInt32 HexToInt32(VMClassRegistry* registry, UInt32 stackId, StaticFunctionTag*, BSFixedString str) {
             const char* s = str.data;
@@ -418,6 +497,7 @@ bool CobbPapyrus::OutfitSystem::Register(VMClassRegistry* registry) {
       GetOutfitNameMaxLength,
       registry
    ));
+   registry->SetFunctionFlags("SkyrimOutfitSystemNativeFuncs", "GetOutfitNameMaxLength", VMClassRegistry::kFunctionFlag_NoWait);
    registry->RegisterFunction(new NativeFunction1<StaticFunctionTag, VMResultArray<RE::TESObjectARMO*>, RE::Actor*>(
       "GetCarriedArmor",
       "SkyrimOutfitSystemNativeFuncs",
@@ -495,6 +575,22 @@ bool CobbPapyrus::OutfitSystem::Register(VMClassRegistry* registry) {
          registry
       ));
    }
+   {  // string sorts
+      registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, VMResultArray<BSFixedString>, VMArray<BSFixedString>, bool>(
+         "NaturalSort_ASCII",
+         "SkyrimOutfitSystemNativeFuncs",
+         StringSorts::NaturalSort_ASCII,
+         registry
+      ));
+      registry->SetFunctionFlags("SkyrimOutfitSystemNativeFuncs", "NaturalSort_ASCII", VMClassRegistry::kFunctionFlag_NoWait);
+      registry->RegisterFunction(new NativeFunction3<StaticFunctionTag, VMResultArray<BSFixedString>, VMArray<BSFixedString>, VMArray<RE::TESObjectARMO*>, bool>(
+         "NaturalSortPairArmor_ASCII",
+         "SkyrimOutfitSystemNativeFuncs",
+         StringSorts::NaturalSortPair_ASCII<RE::TESObjectARMO*>,
+         registry
+      ));
+      registry->SetFunctionFlags("SkyrimOutfitSystemNativeFuncs", "NaturalSortPairArmor_ASCII", VMClassRegistry::kFunctionFlag_NoWait);
+   }
    {  // Utility
       registry->RegisterFunction(new NativeFunction1<StaticFunctionTag, UInt32, BSFixedString>(
          "HexToInt32",
@@ -502,12 +598,14 @@ bool CobbPapyrus::OutfitSystem::Register(VMClassRegistry* registry) {
          Utility::HexToInt32,
          registry
       ));
+      registry->SetFunctionFlags("SkyrimOutfitSystemNativeFuncs", "HexToInt32", VMClassRegistry::kFunctionFlag_NoWait);
       registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, BSFixedString, UInt32, SInt32>(
          "ToHex",
          "SkyrimOutfitSystemNativeFuncs",
          Utility::ToHex,
          registry
       ));
+      registry->SetFunctionFlags("SkyrimOutfitSystemNativeFuncs", "ToHex", VMClassRegistry::kFunctionFlag_NoWait);
    }
    //
    registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, void, BSFixedString, RE::TESObjectARMO*>(
