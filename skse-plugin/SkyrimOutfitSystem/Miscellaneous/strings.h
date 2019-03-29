@@ -25,11 +25,4 @@ namespace cobb {
       }
    };
    typedef std::basic_string<char, char_traits_insensitive> istring; // compares case-insensitively but stores the string as it was received
-
-   struct char_traits_lower : public char_traits_insensitive { // C++11-era; for C++17 and C++20, methods will need signature changes
-      inline static void assign(char& r, const char& a) noexcept {
-         r = tolower(a);
-      }
-   };
-   typedef std::basic_string<char, char_traits_lower> lowerstring; // forces the string to a lowercase representation internally
 };

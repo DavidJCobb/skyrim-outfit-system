@@ -186,6 +186,8 @@ ItemList = new Microsoft.Build.Framework.ITaskItem[0];
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Miscellaneous\tests.cpp" />
+    <ClCompile Include="Miscellaneous\utf8naturalsort.cpp" />
     <ClCompile Include="Miscellaneous\utf8string.cpp" />
     <ClCompile Include="Papyrus\OutfitSystem.cpp" />
     <ClCompile Include="Patches\Exploratory.cpp" />
@@ -200,6 +202,7 @@ ItemList = new Microsoft.Build.Framework.ITaskItem[0];
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Miscellaneous\strings.h" />
+    <ClInclude Include="Miscellaneous\tests.h" />
     <ClInclude Include="Miscellaneous\utf8naturalsort.h" />
     <ClInclude Include="Miscellaneous\utf8string.h" />
     <ClInclude Include="Papyrus\OutfitSystem.h" />

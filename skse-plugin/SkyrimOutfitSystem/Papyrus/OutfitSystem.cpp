@@ -252,15 +252,11 @@ namespace CobbPapyrus {
                result.begin(),
                result.end(),
                [descending](const BSFixedString& x, const BSFixedString& y) {
-                  //cobb::lowerstring a(x.data); // TODO: lowerstring is busted and doesn't actually change case on insert
-                  //cobb::lowerstring b(y.data);
                   std::string a(x.data);
                   std::string b(y.data);
-                  std::transform(a.begin(), a.end(), a.begin(), [](unsigned char c) -> unsigned char { return tolower(c); });
-                  std::transform(b.begin(), b.end(), b.begin(), [](unsigned char c) -> unsigned char { return tolower(c); });
                   if (descending)
                      std::swap(a, b);
-                  return cobb::utf8_naturalcompare(a, b) > 0;
+                  return cobb::utf8::naturalcompare(a, b) > 0;
                }
             );
             return result;
@@ -298,7 +294,7 @@ namespace CobbPapyrus {
                pairs.begin(),
                pairs.end(),
                [descending](const _pair& x, const _pair& y) {
-                  auto result = cobb::utf8_naturalcompare(cobb::lowerstring(x.first.data), cobb::lowerstring(y.first.data));
+                  auto result = cobb::utf8::naturalcompare(std::string(x.first.data), std::string(y.first.data));
                   if (descending)
                      result = -result;
                   return result > 0;
