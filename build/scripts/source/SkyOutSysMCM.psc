@@ -282,18 +282,18 @@ EndFunction
             AddHeaderOption("$SkyOutSys_MCMHeader_OutfitList")
             If _sOutfitNames.Length > 11 ; too many to fit on one screen
                Int iCount     = _sOutfitNames.Length
-               Int iPageCount = iCount / 9
-               If iPageCount * 9 < iCount
+               Int iPageCount = iCount / 8
+               If iPageCount * 8 < iCount
                   iPageCount = iPageCount + 1
                EndIf
                If _iOutfitBrowserPage >= iPageCount
                   _iOutfitBrowserPage = iPageCount - 1
                EndIf
-               Int iOffset    = _iOutfitBrowserPage * 9
+               Int iOffset    = _iOutfitBrowserPage * 8
                Int iIterator  = 0
                Int iMax       = iCount - _iOutfitBrowserPage
-               If iMax > 9 ; (visible - 2) -- make room for page buttons
-                  iMax = 9
+               If iMax > 8 ; (visible - 3) -- make room for page separator and buttons
+                  iMax = 8
                EndIf
                While iIterator < iMax
                   String sName = _sOutfitNames[iIterator + iOffset]
@@ -317,7 +317,9 @@ EndFunction
                If _iOutfitBrowserPage == iPageCount - 1
                   iFlagsNext = OPTION_FLAG_DISABLED
                EndIf
-               AddTextOptionST("OutfitBrowser_Prev", "$SkyOutSys_MCMText_OutfitListPageNumber{" + _iOutfitBrowserPage + "}{" + iPageCount + "}", "$SkyOutSys_MCMText_OutfitListButtonPagePrev", iFlagsPrev)
+               SetCursorPosition(19)
+               AddHeaderOption("")
+               AddTextOptionST("OutfitBrowser_Prev", "$SkyOutSys_MCMText_OutfitListPageNumber{" + (_iOutfitBrowserPage + 1) + "}{" + iPageCount + "}", "$SkyOutSys_MCMText_OutfitListButtonPagePrev", iFlagsPrev)
                AddTextOptionST("OutfitBrowser_Next", "", "$SkyOutSys_MCMText_OutfitListButtonPageNext", iFlagsNext)
             Else
                Int iIterator = 0
@@ -544,18 +546,18 @@ EndFunction
             ;
             Int iSlotCount = _sOutfitSlotNames.Length
             If iSlotCount > 11
-               Int iPageCount = iSlotCount / 9
-               If iPageCount * 9 < iSlotCount
+               Int iPageCount = iSlotCount / 8
+               If iPageCount * 8 < iSlotCount
                   iPageCount = iPageCount + 1
                EndIf
                If _iOutfitEditorBodySlotPage >= iPageCount
                   _iOutfitEditorBodySlotPage = iPageCount - 1
                EndIf
-               Int iOffset    = _iOutfitEditorBodySlotPage * 9
+               Int iOffset    = _iOutfitEditorBodySlotPage * 8
                Int iIterator  = 0
-               Int iMax       = iSlotCount - _iOutfitEditorBodySlotPage
-               If iMax > 9 ; (visible - 2) -- make room for page buttons
-                  iMax = 9
+               Int iMax       = iSlotCount - iOffset
+               If iMax > 8 ; (visible - 3) -- make room for page separator and buttons
+                  iMax = 8
                EndIf
                While iIterator < iMax
                   String sSlot  = _sOutfitSlotNames [iIterator + iOffset]
@@ -574,7 +576,9 @@ EndFunction
                If _iOutfitEditorBodySlotPage == iPageCount - 1
                   iFlagsNext = OPTION_FLAG_DISABLED
                EndIf
-               AddTextOptionST("OutfitEditor_BodySlotsPrev", "$SkyOutSys_MCMText_OutfitSlotsPageNumber{" + _iOutfitBrowserPage + "}{" + iPageCount + "}", "$SkyOutSys_MCMText_OutfitSlotsButtonPagePrev", iFlagsPrev)
+               SetCursorPosition(19)
+               AddHeaderOption("")
+               AddTextOptionST("OutfitEditor_BodySlotsPrev", "$SkyOutSys_MCMText_OutfitSlotsPageNumber{" + (_iOutfitEditorBodySlotPage + 1) + "}{" + iPageCount + "}", "$SkyOutSys_MCMText_OutfitSlotsButtonPagePrev", iFlagsPrev)
                AddTextOptionST("OutfitEditor_BodySlotsNext", "", "$SkyOutSys_MCMText_OutfitSlotsButtonPageNext", iFlagsNext)
             ElseIf iSlotCount
                Int iIterator = 0
@@ -608,6 +612,20 @@ EndFunction
          SetupSlotDataForOutfit(_sEditingOutfit)
          ForcePageReset()
       EndFunction
+      ;
+      State OutfitEditor_BodySlotsPrev
+         Event OnSelectST()
+            _iOutfitEditorBodySlotPage = _iOutfitEditorBodySlotPage - 1
+            ForcePageReset()
+         EndEvent
+      EndState
+      State OutfitEditor_BodySlotsNext
+         Event OnSelectST()
+            _iOutfitEditorBodySlotPage = _iOutfitEditorBodySlotPage + 1
+            ForcePageReset()
+         EndEvent
+      EndState
+      ;
       State OutfitEditor_Back
          Event OnSelectST()
             StopEditingOutfit()
