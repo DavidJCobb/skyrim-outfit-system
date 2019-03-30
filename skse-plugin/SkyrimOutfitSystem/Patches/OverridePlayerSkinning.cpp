@@ -5,6 +5,7 @@
 #include "ReverseEngineered/Forms/TESObjectREFR.h"
 #include "ReverseEngineered/Forms/BaseForms/TESNPC.h"
 #include "ReverseEngineered/Forms/BaseForms/TESObjectARMO.h"
+#include "ReverseEngineered/Systems/EquipManager.h"
 #include "skse/GameAPI.h"
 #include "skse/GameRTTI.h"
 #include "skse/SafeWrite.h"
@@ -93,6 +94,9 @@ namespace SkyrimOutfitSystem {
                }
             }
             void Apply() {
+               //
+               // The function we're patching in the middle of is called by InitWornVisitor::Unk_01.
+               //
                WriteRelJump(0x00562386, (UInt32)&Outer);
             }
          }
@@ -260,11 +264,87 @@ namespace SkyrimOutfitSystem {
                WriteRelJump(0x00566789, (UInt32)&Outer);
             }
          }
+         namespace FixEquipConflictCheck {
+            //
+            // When you try to equip an item, the game loops over the armors in your ActorWeightModel 
+            // rather than your other worn items. Because we're tampering with what goes into the AWM, 
+            // this means that conflict checks are run against your outfit instead of your equipment, 
+            // unless we patch in a fix. (For example, if your outfit doesn't include a helmet, then 
+            // you'd be able to stack helmets endlessly without this patch.)
+            //
+            // The loop in question is performed in Actor::Unk_120, which is also generally responsible 
+            // for equipping items at all.
+            //
+            class _Visitor : public RE::ExtraContainerChanges::InventoryVisitor {
+               //
+               // Bethesda used a visitor to add armor-addons to the ActorWeightModel in the first 
+               // place (see call stack for DontVanillaSkinPlayer patch), so why not use a similar 
+               // visitor to check for conflicts?
+               //
+               private:
+                  virtual BOOL Visit(RE::InventoryEntryData* data) override {
+                     auto form = data->type;
+                     if (form && form->formType == kFormType_Armor) {
+                        auto armor = (RE::TESObjectARMO*) form;
+                        if (CALL_MEMBER_FN(armor, TestBodyPartByIndex)(this->conflictIndex)) {
+                           auto em = RE::EquipManager::GetSingleton();
+                           //
+                           // TODO: The third argument to this call is meant to be a BaseExtraList*, 
+                           // and Bethesda supplies one when calling from Unk_120. Can we get away 
+                           // with a nullptr here, or do we have to find the BaseExtraList that 
+                           // contains an ExtraWorn?
+                           //
+                           // I'm not sure how to investigate this, but I did run one test, and that 
+                           // works properly: I gave myself ten Falmer Helmets and applied different 
+                           // enchantments to two of them (leaving the others unenchanted). In tests, 
+                           // I was unable to stack the helmets with each other or with other helmets, 
+                           // suggesting that the BaseExtraList may not be strictly necessary.
+                           //
+                           CALL_MEMBER_FN(em, UnequipItem)(this->target, (RE::TESForm*)form, nullptr, 1, nullptr, false, false, true, false, nullptr);
+                        }
+                     }
+                     return true;
+                  };
+               public:
+                  RE::Actor* target;
+                  UInt32     conflictIndex = 0;
+            };
+            void _stdcall Inner(UInt32 bodyPartForNewItem, RE::Actor* target) {
+               auto inventory = RE::GetOrCreateExtraContainerChangesDataFor(target);
+               if (inventory) {
+                  _Visitor visitor;
+                  visitor.conflictIndex = bodyPartForNewItem;
+                  visitor.target = target;
+                  CALL_MEMBER_FN(inventory, ExecuteVisitorOnWorn)(&visitor);
+               } else {
+                  _MESSAGE("OverridePlayerSkinning: Conflict check failed: no inventory!");
+               }
+            }
+            __declspec(naked) void Outer() {
+               _asm {
+                  mov  eax, 0x00447C20; // reproduce patched-over call to BGSBipedObjectForm::TestBodyPartByIndex(edi);
+                  call eax;
+                  test al, al;
+                  jz   lExit;
+                  push ebx;
+                  push edi;
+                  call Inner; // stdcall
+               lExit:
+                  xor  al, al; // force the vanilla check to always skip, since we're handling this now
+                  mov  ecx, 0x006B60D8;
+                  jmp  ecx;
+               }
+            }
+            void Apply() {
+               WriteRelJump(0x006B60D3, (UInt32)&Outer);
+            }
+         }
          //
          void Apply() {
             DontVanillaSkinPlayer::Apply();
             ShimWornFlags::Apply();
             CustomSkinPlayer::Apply();
+            FixEquipConflictCheck::Apply();
          }
       }
    }
