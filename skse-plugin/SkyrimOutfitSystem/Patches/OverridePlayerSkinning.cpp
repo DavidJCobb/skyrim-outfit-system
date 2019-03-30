@@ -320,17 +320,34 @@ namespace SkyrimOutfitSystem {
                   _MESSAGE("OverridePlayerSkinning: Conflict check failed: no inventory!");
                }
             }
+            bool _stdcall ShouldOverride(RE::TESForm* item) {
+               //
+               // We only hijack equipping for armors, so I'd like for this patch to only 
+               // apply to armors as well. It shouldn't really matter -- before I added 
+               // this check, weapons and the like tested in-game with no issues, likely 
+               // because they're handled very differently -- but I just wanna be sure. 
+               // We should use vanilla code whenever we don't need to NOT use it.
+               //
+               return (item->formType == kFormType_Armor);
+            }
             __declspec(naked) void Outer() {
                _asm {
                   mov  eax, 0x00447C20; // reproduce patched-over call to BGSBipedObjectForm::TestBodyPartByIndex(edi);
                   call eax;
                   test al, al;
                   jz   lExit;
+                  mov  eax, dword ptr [esp + 0x3C]; // Arg1
+                  push eax;
+                  call ShouldOverride; // stdcall
+                  test al, al;
+                  mov  eax, 1; // let the vanilla check run as originally coded
+                  jz   lVanilla;
                   push ebx;
                   push edi;
                   call Inner; // stdcall
                lExit:
                   xor  al, al; // force the vanilla check to always skip, since we're handling this now
+               lVanilla:
                   mov  ecx, 0x006B60D8;
                   jmp  ecx;
                }
