@@ -25,7 +25,7 @@ Bool     _bOutfitEditor_AddFromList_Playable = True
 String[] Property pkQuickslotOutfits Auto
 
 Int Function GetModVersion() Global ; static method; therefore, safely callable by outside parties even before/during OnInit
-	Return 0x01000000
+	Return 0x01000100
 EndFunction
 Int Function GetVersion()
 	Return GetModVersion()

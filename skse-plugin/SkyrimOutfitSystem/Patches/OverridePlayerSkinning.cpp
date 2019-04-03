@@ -73,7 +73,7 @@ namespace SkyrimOutfitSystem {
                            if (armor->bipedObject.data.parts & armor->bipedObject.kPart_Body)
                               mod = 2;
                            SInt32 skill = CALL_MEMBER_FN(armor, GetArmorSkillAVIndex)();
-_MESSAGE("GetDominantArmorType functor: found eligible armor with form ID %08X and skill %d.", armor->formID, skill);
+//_MESSAGE("GetDominantArmorType functor: found eligible armor with form ID %08X and skill %d.", armor->formID, skill);
                            if (skill == 0xB) {
                               this->shimmed.foundHeavy += mod;
                            } else if (skill == 0xC) {
@@ -85,7 +85,7 @@ _MESSAGE("GetDominantArmorType functor: found eligible armor with form ID %08X a
                      RE::ActorWeightData::IdentifyDominantArmorTypeVisitor shimmed;
                   public:
                      SInt32 GetResult() { // call after executing the visitor
-_MESSAGE("GetDominantArmorType functor done... heavy: %d; light: %d", this->shimmed.foundHeavy, this->shimmed.foundLight);
+//_MESSAGE("GetDominantArmorType functor done... heavy: %d; light: %d", this->shimmed.foundHeavy, this->shimmed.foundLight);
                         return CALL_MEMBER_FN(&this->shimmed, GetResultAVIndex)();
                      };
                };
@@ -93,9 +93,11 @@ _MESSAGE("GetDominantArmorType functor done... heavy: %d; light: %d", this->shim
                   auto inventory = RE::GetOrCreateExtraContainerChangesDataFor(actor);
                   if (inventory) {
                      _Visitor visitor;
-_MESSAGE("GetDominantArmorType: running functor...");
+//_MESSAGE("GetDominantArmorType: running functor...");
                      CALL_MEMBER_FN(inventory, ExecuteVisitorOnWorn)(&visitor);
-                     return visitor.GetResult();
+                     auto result = visitor.GetResult();
+//_MESSAGE("GetDominantArmorType: final result should be %d.", result);
+                     return result;
                   }
                   _MESSAGE("OverridePlayerSkinning: Actor::GetDominantArmorType shim failed: no inventory!");
                   return -1;
