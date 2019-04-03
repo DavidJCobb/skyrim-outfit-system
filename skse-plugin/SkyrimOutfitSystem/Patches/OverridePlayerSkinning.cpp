@@ -48,6 +48,146 @@ namespace SkyrimOutfitSystem {
          //     - Wrap the caller: after it runs, manually register the armors 
          //       we want to show.
          //
+         namespace FixGetters {
+            //
+            // Several of the game's getters access the ActorWeightData rather 
+            // than the inventory.
+            //
+            namespace Actor_GetDominantArmorSkill {
+               class _Visitor : public RE::ExtraContainerChanges::InventoryVisitor {
+                  private:
+                     virtual BOOL Visit(RE::InventoryEntryData* data) override {
+                        auto form = data->type;
+                        if (form && form->formType == kFormType_Armor) {
+                           auto armor = (RE::TESObjectARMO*) form;
+                           //
+                           // Mimic processing for the IdentifyDominantArmorTypeVisitor.
+                           //
+                           if (armor->IsShield()) // shields don't count
+                              return true;
+                           if (armor->bipedObject.data.weightClass == 2)
+                              return true;
+                           if (0.0F >= ((float)armor->armorValTimes100 / 100.0F))
+                              return true;
+                           UInt32 mod = 1;
+                           if (armor->bipedObject.data.parts & armor->bipedObject.kPart_Body)
+                              mod = 2;
+                           SInt32 skill = CALL_MEMBER_FN(armor, GetArmorSkillAVIndex)();
+_MESSAGE("GetDominantArmorType functor: found eligible armor with form ID %08X and skill %d.", armor->formID, skill);
+                           if (skill == 0xB) {
+                              this->shimmed.foundHeavy += mod;
+                           } else if (skill == 0xC) {
+                              this->shimmed.foundLight += mod;
+                           }
+                        }
+                        return true;
+                     };
+                     RE::ActorWeightData::IdentifyDominantArmorTypeVisitor shimmed;
+                  public:
+                     SInt32 GetResult() { // call after executing the visitor
+_MESSAGE("GetDominantArmorType functor done... heavy: %d; light: %d", this->shimmed.foundHeavy, this->shimmed.foundLight);
+                        return CALL_MEMBER_FN(&this->shimmed, GetResultAVIndex)();
+                     };
+               };
+               SInt32 _stdcall Inner(RE::Actor* actor) {
+                  auto inventory = RE::GetOrCreateExtraContainerChangesDataFor(actor);
+                  if (inventory) {
+                     _Visitor visitor;
+_MESSAGE("GetDominantArmorType: running functor...");
+                     CALL_MEMBER_FN(inventory, ExecuteVisitorOnWorn)(&visitor);
+                     return visitor.GetResult();
+                  }
+                  _MESSAGE("OverridePlayerSkinning: Actor::GetDominantArmorType shim failed: no inventory!");
+                  return -1;
+               }
+               __declspec(naked) void Outer() {
+                  _asm {
+                     push ecx; // protect
+                     push ecx;
+                     call ShouldOverrideSkinning; // stdcall
+                     test al, al;
+                     pop  ecx; // restore
+                     jz   lVanilla;
+                     push ecx;
+                     call Inner; // stdcall
+                     retn;
+                  lVanilla:
+                     //
+                     // reproduce vanilla code:
+                     //
+                     mov  eax, dword ptr [ecx];
+                     mov  edx, dword ptr [eax + 0x1F8];
+                     sub  esp, 0x10;
+                     push esi;
+                     mov  esi, 0x006E1B7C;
+                     jmp  esi;
+                  }
+               }
+               void Apply() {
+                  WriteRelJump(0x006E1B70, (UInt32)&Outer);
+               }
+            }
+            namespace Actor_GetEquippedShield {
+               class _Visitor : public RE::ExtraContainerChanges::InventoryVisitor {
+                  private:
+                     virtual BOOL Visit(RE::InventoryEntryData* data) override {
+                        auto form = data->type;
+                        if (form && form->formType == kFormType_Armor) {
+                           auto armor = (RE::TESObjectARMO*) form;
+                           if (armor->IsShield()) {
+                              shield = armor;
+                              return false; // halt visitor early
+                           }
+                        }
+                        return true;
+                     };
+                  public:
+                     RE::TESObjectARMO* shield = nullptr;
+               };
+               RE::TESObjectARMO* _stdcall Inner(RE::Actor* actor) {
+                  auto inventory = RE::GetOrCreateExtraContainerChangesDataFor(actor);
+                  if (inventory) {
+                     _Visitor visitor;
+                     CALL_MEMBER_FN(inventory, ExecuteVisitorOnWorn)(&visitor);
+                     return visitor.shield;
+                  }
+                  _MESSAGE("OverridePlayerSkinning: Actor::GetEquippedShield shim failed: no inventory!");
+                  return nullptr;
+               }
+               _declspec(naked) void Outer() {
+                  _asm {
+                     push ecx; // protect
+                     push ecx;
+                     call ShouldOverrideSkinning; // stdcall
+                     test al, al;
+                     pop  ecx; // restore
+                     jz   lVanilla;
+                     push ecx;
+                     call Inner; // stdcall
+                     retn;
+                  lVanilla:
+                     //
+                     // reproduce vanilla code:
+                     //
+                     mov  eax, dword ptr [ecx];
+                     mov  edx, dword ptr [eax + 0x1FC];
+                     push esi;
+                     xor  esi, esi;
+                     call edx;
+                     mov  ecx, 0x006E1BED;
+                     jmp  ecx;
+                  }
+               }
+               void Apply() {
+                  WriteRelJump(0x006E1BE0, (UInt32)&Outer);
+               }
+            }
+            //
+            void Apply() {
+               Actor_GetDominantArmorSkill::Apply();
+               Actor_GetEquippedShield::Apply();
+            }
+         }
          namespace DontVanillaSkinPlayer {
             //
             // Prevent the vanilla code from skinning the player; we'll do it 
@@ -362,6 +502,7 @@ namespace SkyrimOutfitSystem {
             ShimWornFlags::Apply();
             CustomSkinPlayer::Apply();
             FixEquipConflictCheck::Apply();
+            FixGetters::Apply();
          }
       }
    }
