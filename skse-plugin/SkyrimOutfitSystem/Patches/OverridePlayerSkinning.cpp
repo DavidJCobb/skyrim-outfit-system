@@ -5,6 +5,7 @@
 #include "ReverseEngineered/Forms/TESObjectREFR.h"
 #include "ReverseEngineered/Forms/BaseForms/TESNPC.h"
 #include "ReverseEngineered/Forms/BaseForms/TESObjectARMO.h"
+#include "ReverseEngineered/Systems/DefaultObjects.h"
 #include "ReverseEngineered/Systems/EquipManager.h"
 #include "skse/GameAPI.h"
 #include "skse/GameRTTI.h"
@@ -18,6 +19,28 @@ namespace SkyrimOutfitSystem {
          bool _stdcall ShouldOverrideSkinning(RE::TESObjectREFR* target) {
             if (!ArmorAddonOverrideService::GetInstance().shouldOverride())
                return false;
+            {  // werewolf/vampire-lord check
+               TESRace* actorRace = nullptr;
+               {
+                  auto actorBase = DYNAMIC_CAST(target->baseForm, TESForm, TESNPC);
+                  if (actorBase)
+                     actorRace = actorBase->race.race;
+               }
+               if (actorRace) {
+                  TESRace* vampireLord = nullptr;
+                  TESRace* werewolf    = nullptr;
+                  //
+                  auto form = RE::GetDOBJByIndex(RE::kDOBJIndex_DLC1VampireLordRace);
+                  if (form)
+                     vampireLord = DYNAMIC_CAST(form, TESForm, TESRace);
+                  form = RE::GetDOBJByIndex(RE::kDOBJIndex_DLC1WerewolfRace);
+                  if (form)
+                     werewolf = DYNAMIC_CAST(form, TESForm, TESRace);
+                  //
+                  if (actorRace == vampireLord || actorRace == werewolf)
+                     return false;
+               }
+            }
             return (target == (RE::TESObjectREFR*) *g_thePlayer);
          }
          const std::set<RE::TESObjectARMO*>& GetOverrideArmors() {
