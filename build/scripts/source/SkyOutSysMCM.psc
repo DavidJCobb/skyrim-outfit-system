@@ -25,7 +25,7 @@ Bool     _bOutfitEditor_AddFromList_Playable = True
 String[] Property pkQuickslotOutfits Auto
 
 Int Function GetModVersion() Global ; static method; therefore, safely callable by outside parties even before/during OnInit
-	Return 0x01000200
+	Return 0x01000300
 EndFunction
 Int Function GetVersion()
 	Return GetModVersion()
@@ -565,7 +565,7 @@ EndFunction
                   If !sArmor
                      sArmor = "$SkyOutSys_NamelessArmor"
                   EndIf
-                  AddTextOptionST("OutfitEditor_BodySlot_" + iIterator, sSlot, sArmor)
+                  AddTextOptionST("OutfitEditor_BodySlot_" + (iIterator + iOffset), sSlot, sArmor)
                   iIterator = iIterator + 1
                EndWhile
                Int iFlagsPrev = OPTION_FLAG_NONE
