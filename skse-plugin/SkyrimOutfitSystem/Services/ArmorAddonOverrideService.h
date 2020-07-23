@@ -1,6 +1,7 @@
 #pragma once
 #include "skse/PluginAPI.h"
 #include <set>
+#include <stdexcept>
 #include <unordered_map>
 #include <vector>
 

@@ -375,16 +375,16 @@ namespace SkyrimOutfitSystem {
                   bool result = false;
             };
             //
-            void _stdcall Custom(RE::Actor* target, void* actorWeightModelData) {
+            void _stdcall Custom(RE::Actor* target, RE::ActorWeightData* actorWeightModelData) {
                if (!actorWeightModelData)
                   return;
                auto base = (RE::TESNPC*) DYNAMIC_CAST(target->baseForm, TESForm, TESNPC);
                if (!base)
                   return;
                auto race     = (RE::TESRace*) base->race.race;
-               BOOL isFemale = base->actorData.flags & base->kFlag_Female;
+               BOOL isFemale = base->actorData.flags & RE::TESActorBaseData::kFlag_Female;
                //
-               void** toPass = &actorWeightModelData;
+               RE::ActorWeightData** toPass = &actorWeightModelData;
                auto& armors = GetOverrideArmors();
                for (auto it = armors.cbegin(); it != armors.cend(); ++it) {
                   RE::TESObjectARMO* armor = *it;

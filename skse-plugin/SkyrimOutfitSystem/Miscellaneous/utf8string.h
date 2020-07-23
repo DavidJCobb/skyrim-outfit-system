@@ -1,6 +1,6 @@
 #pragma once
 #include "strings.h"
-#include <string> using namespace std;
+#include <string>
 
 namespace cobb {
    typedef uint32_t unicodechar;
